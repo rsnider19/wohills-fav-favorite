@@ -64,3 +64,36 @@ if (!row) fail('No settings row found — run the seed first')
 console.log('✓ Voting window applied:')
 console.log(`  opens  ${row.voting_opens_at ?? '(no restriction)'}`)
 console.log(`  closes ${row.voting_closes_at ?? '(no restriction)'}`)
+
+// ADMIN_PHONE (optional): who may upload float photos from the site.
+// Stored digits-only to match the JWT phone claim; empty value clears it.
+const adminRaw = process.env.ADMIN_PHONE
+if (adminRaw !== undefined) {
+  let adminPhone = null
+  if (adminRaw.trim() !== '') {
+    const digits = adminRaw.replace(/\D/g, '')
+    const normalized = digits.length === 10 ? `1${digits}` : digits
+    if (normalized.length !== 11 || !normalized.startsWith('1'))
+      fail(`ADMIN_PHONE="${adminRaw}" is not a valid US phone number`)
+    adminPhone = normalized
+  }
+  const adminRes = await fetch(
+    `${url.replace(/\/$/, '')}/rest/v1/admin_config?on_conflict=id`,
+    {
+      method: 'POST',
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify({ id: true, admin_phone: adminPhone }),
+    },
+  )
+  if (!adminRes.ok) fail(`Supabase responded ${adminRes.status}: ${await adminRes.text()}`)
+  console.log(
+    adminPhone
+      ? `✓ Admin phone set: +${adminPhone} can upload float photos`
+      : '✓ Admin phone cleared',
+  )
+}

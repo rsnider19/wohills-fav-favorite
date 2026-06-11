@@ -23,6 +23,7 @@ export default function App() {
   const [voteBusy, setVoteBusy] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [now, setNow] = useState(() => new Date())
 
   // The window is enforced server-side by RLS against the database clock;
@@ -92,6 +93,18 @@ export default function App() {
       .maybeSingle()
       .then(({ data }) => setMyVote(data?.entry_id ?? null))
   }, [session, pendingVote])
+
+  // The admin (matched by phone in the database) gets photo-upload buttons.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const admin = session ? (await supabase.rpc('is_admin')).data === true : false
+      if (!cancelled) setIsAdmin(admin)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [session])
 
   const flashToast = useCallback((message: string) => {
     setToast(message)
@@ -234,7 +247,12 @@ export default function App() {
                   beforeOpen={beforeOpen}
                   signedIn={!!session}
                   busy={voteBusy}
+                  isAdmin={isAdmin}
                   onVote={castVote}
+                  onPhotoDone={(message, ok) => {
+                    flashToast(message)
+                    if (ok) refresh()
+                  }}
                 />
               </div>
             ))}

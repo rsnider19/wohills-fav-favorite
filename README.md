@@ -62,21 +62,22 @@ supabase db reset   # re-runs migrations + seed (wipes local votes AND the votin
 npm run set-window  # re-apply the voting window after every reset
 ```
 
-### Float photos
+### Float photos (day-of)
 
-Upload each float's photo to the public `floats` storage bucket (local: Studio →
-Storage; created from `[storage.buckets.floats]` in `config.toml` — run
-`supabase seed buckets` if it's missing). Then point the entry at the file's
-public URL:
+Set `ADMIN_PHONE` in `.env` and run `npm run set-window`. When that person signs
+in on the site (same phone-code flow as voting), every float card shows a
+**📷 Update photo** button: take or pick a photo, and it's resized client-side,
+uploaded to the public `floats` storage bucket, and the entry is updated — one
+tap per float, straight from a phone at the parade.
 
-```sql
-update public.entries
-set image_url = 'https://<ref>.supabase.co/storage/v1/object/public/floats/salt-and-pepper.jpg'
-where street = 'Plesenton Dr';
-```
+Enforcement is in the database: `is_admin()` compares the JWT phone claim to
+`admin_config.admin_phone` (a table nobody can read), and RLS only lets admins
+write to the bucket or update entries. Photos are stored under unique filenames
+so the CDN never serves a stale image.
 
-Cards and the results list render the photo automatically; entries with a null
-`image_url` simply render without one.
+Manual fallback: upload to the `floats` bucket in the dashboard and set
+`entries.image_url` to the file's public URL. Entries with a null `image_url`
+simply render without a photo.
 
 ## Voting window
 
@@ -166,6 +167,8 @@ supabase/
                                      voting window columns + voting_is_open() RLS
   migrations/20260612000000_floats.sql
                                      theme/street rename + image_url
+  migrations/20260613000000_admin_uploads.sql
+                                     admin_config, is_admin(), photo-upload RLS
   seed.sql                           parade floats (theme, street, photo)
 scripts/
   set-voting-window.mjs              applies VOTING_*_AT env vars to the database
@@ -173,6 +176,7 @@ src/
   App.tsx                            app shell, vote logic, settings polling
   components/PhoneAuth.tsx           phone → 6-digit code sign-in modal
   components/EntryCard.tsx           one float on the ballot
+  components/AdminPhotoButton.tsx    day-of photo upload (admin only)
   components/Countdown.tsx           opens-in / closes-in timer
   components/Results.tsx             reveal-day leaderboard
   lib/supabase.ts                    client init from VITE_* env vars
