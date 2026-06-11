@@ -2,22 +2,56 @@ import { useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Entry } from '../types'
 
+/** Decode a photo to something drawable, preferring createImageBitmap but
+ *  falling back to an <img> element (more forgiving on mobile Safari). */
+async function decodeImage(file: File): Promise<{
+  source: CanvasImageSource
+  width: number
+  height: number
+  cleanup: () => void
+}> {
+  try {
+    const bitmap = await createImageBitmap(file)
+    return {
+      source: bitmap,
+      width: bitmap.width,
+      height: bitmap.height,
+      cleanup: () => bitmap.close(),
+    }
+  } catch {
+    const objectUrl = URL.createObjectURL(file)
+    const img = new Image()
+    img.src = objectUrl
+    await img.decode()
+    return {
+      source: img,
+      width: img.naturalWidth,
+      height: img.naturalHeight,
+      cleanup: () => URL.revokeObjectURL(objectUrl),
+    }
+  }
+}
+
 /** Downscale to maxDim and re-encode as JPEG so phone photos (often huge,
  *  sometimes HEIC) become small files every browser can display. */
 async function toJpeg(file: File, maxDim: number): Promise<Blob> {
-  const bitmap = await createImageBitmap(file)
-  const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height))
-  const canvas = document.createElement('canvas')
-  canvas.width = Math.round(bitmap.width * scale)
-  canvas.height = Math.round(bitmap.height * scale)
-  canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-  return new Promise((resolve, reject) =>
-    canvas.toBlob(
-      (blob) => (blob ? resolve(blob) : reject(new Error('Could not encode image'))),
-      'image/jpeg',
-      0.85,
-    ),
-  )
+  const { source, width, height, cleanup } = await decodeImage(file)
+  try {
+    const scale = Math.min(1, maxDim / Math.max(width, height))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(width * scale)
+    canvas.height = Math.round(height * scale)
+    canvas.getContext('2d')!.drawImage(source, 0, 0, canvas.width, canvas.height)
+    return await new Promise((resolve, reject) =>
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error('could not encode image'))),
+        'image/jpeg',
+        0.85,
+      ),
+    )
+  } finally {
+    cleanup()
+  }
 }
 
 interface Props {
@@ -33,12 +67,23 @@ export default function AdminPhotoButton({ entry, onDone }: Props) {
   async function handleFile(file: File) {
     setBusy(true)
     try {
-      const jpeg = await toJpeg(file, 1600)
+      // Resize when we can; if decoding fails on this browser, fall back to
+      // uploading the original file as long as it's a web-displayable type.
+      let blob: Blob = file
+      let contentType = file.type
+      try {
+        blob = await toJpeg(file, 1600)
+        contentType = 'image/jpeg'
+      } catch {
+        if (!/^image\/(jpeg|png|webp)$/.test(file.type))
+          throw new Error('unsupported image format')
+        if (file.size > 9_000_000) throw new Error('photo too large')
+      }
       // Unique name per upload so the CDN never serves a stale photo.
       const path = `entry-${entry.entry_number}-${Date.now()}.jpg`
       const { error: uploadError } = await supabase.storage
         .from('floats')
-        .upload(path, jpeg, { contentType: 'image/jpeg' })
+        .upload(path, blob, { contentType })
       if (uploadError) throw uploadError
       const { data } = supabase.storage.from('floats').getPublicUrl(path)
       const { error: updateError } = await supabase
@@ -47,8 +92,9 @@ export default function AdminPhotoButton({ entry, onDone }: Props) {
         .eq('id', entry.id)
       if (updateError) throw updateError
       onDone(`Photo updated for ${entry.theme} 📷`, true)
-    } catch {
-      onDone('Photo upload failed — try again.', false)
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err)
+      onDone(`Photo upload failed: ${detail}`, false)
     } finally {
       setBusy(false)
       if (inputRef.current) inputRef.current.value = ''
