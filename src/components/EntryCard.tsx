@@ -44,16 +44,9 @@ export default function EntryCard({
           <div className="text-[10px] font-semibold tracking-[0.25em] text-red uppercase">
             ★ Mystery float
           </div>
-          <h3 className="mt-1 font-display text-[1.65rem] leading-tight font-semibold">
+          <h3 className="mt-1 mb-6 grow font-display text-[1.65rem] leading-tight font-semibold">
             {entry.street}
           </h3>
-          <div className="mt-4 space-y-2" aria-hidden="true">
-            <div className="h-2.5 w-3/4 rounded-full bg-ink/10" />
-            <div className="h-2.5 w-1/2 rounded-full bg-ink/10" />
-          </div>
-          <p className="mt-4 mb-6 grow text-sm text-ink/45">
-            Theme revealed when voting opens.
-          </p>
           <button
             type="button"
             disabled
