@@ -65,10 +65,11 @@ npm run set-window  # re-apply the voting window after every reset
 ### Float photos (day-of)
 
 Set `ADMIN_PHONE` in `.env` and run `npm run set-window`. When that person signs
-in on the site (same phone-code flow as voting), every float card shows a
-**📷 Update photo** button: take or pick a photo, and it's resized client-side,
-uploaded to the public `floats` storage bucket, and the entry is updated — one
-tap per float, straight from a phone at the parade.
+in on the site (same phone-code flow as voting), every float card shows two
+admin buttons: **📷 Photo** (take or pick a photo — it's resized client-side,
+uploaded to the public `floats` storage bucket, and the entry is updated) and
+**✏️ Edit** (change the theme, emoji, street, or description). One tap per
+float, straight from a phone at the parade.
 
 To sign in **before voting opens** (vote buttons are disabled until then), use
 either hidden entrance: open the site with `/?signin`, or tap the
@@ -152,7 +153,10 @@ phone within half a minute.
 
 ### 2. Cloudflare
 
-Build with the production Supabase values, then deploy:
+**CI does this automatically**: every push to `main` builds and deploys via
+GitHub Actions (`.github/workflows/deploy.yml`), using the repo variables
+`VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` and the `CLOUDFLARE_API_TOKEN`
+secret. To deploy manually instead:
 
 ```sh
 VITE_SUPABASE_URL=https://<ref>.supabase.co \
