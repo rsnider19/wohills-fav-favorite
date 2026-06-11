@@ -272,7 +272,7 @@ export default function App() {
                   busy={voteBusy}
                   isAdmin={isAdmin}
                   onVote={castVote}
-                  onPhotoDone={(message, ok) => {
+                  onAdminDone={(message, ok) => {
                     flashToast(message)
                     if (ok) refresh()
                   }}

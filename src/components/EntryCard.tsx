@@ -1,4 +1,5 @@
 import type { Entry } from '../types'
+import AdminEditButton from './AdminEditButton'
 import AdminPhotoButton from './AdminPhotoButton'
 
 interface Props {
@@ -10,7 +11,7 @@ interface Props {
   busy: boolean
   isAdmin: boolean
   onVote: (entry: Entry) => void
-  onPhotoDone: (message: string, ok: boolean) => void
+  onAdminDone: (message: string, ok: boolean) => void
 }
 
 export default function EntryCard({
@@ -22,7 +23,7 @@ export default function EntryCard({
   busy,
   isAdmin,
   onVote,
-  onPhotoDone,
+  onAdminDone,
 }: Props) {
   return (
     <article
@@ -47,7 +48,12 @@ export default function EntryCard({
         </div>
       )}
 
-      {isAdmin && <AdminPhotoButton entry={entry} onDone={onPhotoDone} />}
+      {isAdmin && (
+        <div className="absolute top-3 left-3 z-10 flex gap-2">
+          <AdminPhotoButton entry={entry} onDone={onAdminDone} />
+          <AdminEditButton entry={entry} onDone={onAdminDone} />
+        </div>
+      )}
 
       <div className="flex grow flex-col p-6">
         <div className="flex items-start justify-between gap-3">
