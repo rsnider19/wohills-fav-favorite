@@ -23,6 +23,10 @@ async function decodeImage(file: File): Promise<{
     const img = new Image()
     img.src = objectUrl
     await img.decode()
+    if (!img.naturalWidth) {
+      URL.revokeObjectURL(objectUrl)
+      throw new Error('image decoded empty')
+    }
     return {
       source: img,
       width: img.naturalWidth,
@@ -30,6 +34,18 @@ async function decodeImage(file: File): Promise<{
       cleanup: () => URL.revokeObjectURL(objectUrl),
     }
   }
+}
+
+/** Identify the real format from magic bytes — file.type lies (iPhones have
+ *  handed over HEIC labeled as image/png). */
+async function sniffType(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.slice(0, 16).arrayBuffer())
+  const ascii = Array.from(bytes, (b) => String.fromCharCode(b)).join('')
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) return 'image/jpeg'
+  if (bytes[0] === 0x89 && ascii.slice(1, 4) === 'PNG') return 'image/png'
+  if (ascii.slice(0, 4) === 'RIFF' && ascii.slice(8, 12) === 'WEBP') return 'image/webp'
+  if (ascii.slice(4, 8) === 'ftyp') return 'image/heic'
+  return file.type || 'unknown'
 }
 
 /** Downscale to maxDim and re-encode as JPEG so phone photos (often huge,
@@ -68,15 +84,22 @@ export default function AdminPhotoButton({ entry, onDone }: Props) {
     setBusy(true)
     try {
       // Resize when we can; if decoding fails on this browser, fall back to
-      // uploading the original file as long as it's a web-displayable type.
+      // uploading the original — but only if its actual bytes (not the
+      // self-reported type) are a format every browser can display.
       let blob: Blob = file
       let contentType = file.type
       try {
         blob = await toJpeg(file, 1600)
         contentType = 'image/jpeg'
       } catch {
-        if (!/^image\/(jpeg|png|webp)$/.test(file.type))
+        const realType = await sniffType(file)
+        if (realType === 'image/heic')
+          throw new Error(
+            "this is a HEIC photo, which browsers can't show — screenshot it and upload the screenshot",
+          )
+        if (!/^image\/(jpeg|png|webp)$/.test(realType))
           throw new Error('unsupported image format')
+        contentType = realType
         if (file.size > 9_000_000) throw new Error('photo too large')
       }
       // Unique name per upload so the CDN never serves a stale photo.
