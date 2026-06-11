@@ -70,6 +70,12 @@ in on the site (same phone-code flow as voting), every float card shows a
 uploaded to the public `floats` storage bucket, and the entry is updated — one
 tap per float, straight from a phone at the parade.
 
+To sign in **before voting opens** (vote buttons are disabled until then), use
+either hidden entrance: open the site with `/?signin`, or tap the
+"Worthington Hills Parade" badge in the header 5 times quickly. Signing in
+early grants nothing by itself — votes outside the window are still rejected
+by the database.
+
 Enforcement is in the database: `is_admin()` compares the JWT phone claim to
 `admin_config.admin_phone` (a table nobody can read), and RLS only lets admins
 write to the bucket or update entries. Photos are stored under unique filenames

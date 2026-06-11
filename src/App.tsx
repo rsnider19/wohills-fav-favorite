@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import type { Entry, ResultRow, Settings } from './types'
@@ -18,7 +18,13 @@ export default function App() {
   })
   const [myVote, setMyVote] = useState<string | null>(null)
   const [results, setResults] = useState<ResultRow[]>([])
-  const [showAuth, setShowAuth] = useState(false)
+  // Secret pre-voting sign-in (for the admin to upload photos): visiting
+  // /?signin opens the modal, as does 5 quick taps on the header badge.
+  // Harmless if discovered — voting outside the window is still blocked by RLS.
+  const [showAuth, setShowAuth] = useState(
+    () => new URLSearchParams(window.location.search).has('signin'),
+  )
+  const secretTaps = useRef({ count: 0, timer: 0 })
   const [pendingVote, setPendingVote] = useState<Entry | null>(null)
   const [voteBusy, setVoteBusy] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -154,13 +160,30 @@ export default function App() {
     setVoteBusy(false)
   }
 
+  function handleSecretTap() {
+    const taps = secretTaps.current
+    window.clearTimeout(taps.timer)
+    taps.count += 1
+    if (taps.count >= 5) {
+      taps.count = 0
+      setShowAuth(true)
+      return
+    }
+    taps.timer = window.setTimeout(() => {
+      taps.count = 0
+    }, 1500)
+  }
+
   const ticker = 'Worthington Hills ✦ 4th of July 2026 ✦ Fan Favorite ✦ One Neighbor, One Vote ✦ '
 
   return (
     <div className="min-h-screen">
       {/* Header */}
       <header className="mx-auto w-full max-w-6xl px-5 pt-6">
-        <div className="rise text-xs font-semibold tracking-[0.2em] text-ink/50 uppercase">
+        <div
+          className="rise inline-block text-xs font-semibold tracking-[0.2em] text-ink/50 uppercase select-none"
+          onClick={handleSecretTap}
+        >
           Worthington Hills Parade
         </div>
       </header>
