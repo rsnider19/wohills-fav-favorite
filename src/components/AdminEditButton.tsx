@@ -48,7 +48,7 @@ export default function AdminEditButton({ entry, onDone }: Props) {
       return
     }
     setOpen(false)
-    onDone(`${form.theme.trim()} updated ✏️`, true)
+    onDone(`${form.theme.trim() || form.street.trim()} updated ✏️`, true)
   }
 
   return (
@@ -71,12 +71,14 @@ export default function AdminEditButton({ entry, onDone }: Props) {
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
-            aria-label={`Edit ${entry.theme}`}
+            aria-label={`Edit ${entry.theme || entry.street}`}
           >
             <p className="mb-2 text-xs font-semibold tracking-[0.25em] text-red uppercase">
               ★ Edit float
             </p>
-            <h2 className="mb-5 font-display text-3xl font-semibold">{entry.theme}</h2>
+            <h2 className="mb-5 font-display text-3xl font-semibold">
+              {entry.theme || entry.street}
+            </h2>
             <form onSubmit={save} className="space-y-4">
               <div className="flex gap-3">
                 <div className="grow">
@@ -85,7 +87,7 @@ export default function AdminEditButton({ entry, onDone }: Props) {
                   </label>
                   <input
                     id={`theme-${entry.id}`}
-                    required
+                    placeholder="Revealed on parade day"
                     value={form.theme}
                     onChange={(e) => setForm({ ...form, theme: e.target.value })}
                     className={inputClass}

@@ -130,8 +130,8 @@ export default function App() {
       setMyVote(entry.id)
       flashToast(
         previous
-          ? `Vote changed to ${entry.theme} ★`
-          : `Vote cast for ${entry.theme} ★`,
+          ? `Vote changed to ${entry.theme || entry.street} ★`
+          : `Vote cast for ${entry.theme || entry.street} ★`,
       )
     },
     [flashToast],
@@ -271,6 +271,7 @@ export default function App() {
                   signedIn={!!session}
                   busy={voteBusy}
                   isAdmin={isAdmin}
+                  mystery={beforeOpen}
                   onVote={castVote}
                   onAdminDone={(message, ok) => {
                     flashToast(message)
@@ -294,7 +295,7 @@ export default function App() {
 
       {showAuth && (
         <PhoneAuth
-          voteFor={pendingVote?.theme}
+          voteFor={pendingVote ? pendingVote.theme || pendingVote.street : undefined}
           onSuccess={() => setShowAuth(false)}
           onCancel={() => {
             setShowAuth(false)

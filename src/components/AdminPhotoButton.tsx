@@ -114,7 +114,7 @@ export default function AdminPhotoButton({ entry, onDone }: Props) {
         .update({ image_url: data.publicUrl })
         .eq('id', entry.id)
       if (updateError) throw updateError
-      onDone(`Photo updated for ${entry.theme} 📷`, true)
+      onDone(`Photo updated for ${entry.theme || entry.street} 📷`, true)
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err)
       onDone(`Photo upload failed: ${detail}`, false)

@@ -40,7 +40,7 @@ export default function Results({ results }: { results: ResultRow[] }) {
               <div className="min-w-0 grow">
                 <div className="flex items-baseline gap-2">
                   <span className="truncate font-display text-xl font-semibold text-ink">
-                    {r.theme}
+                    {r.theme || r.street}
                   </span>
                   <span className="shrink-0 text-lg leading-none">{r.emoji}</span>
                   {i === 0 && (
