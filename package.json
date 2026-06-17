@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
-    "set-window": "node scripts/set-voting-window.mjs"
+    "set-window": "node scripts/set-voting-window.mjs",
+    "seed-floats": "node scripts/seed-floats.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.1",

@@ -38,7 +38,7 @@ export default function EntryCard({
           </div>
         )}
         <div className="flex aspect-[4/3] items-center justify-center border-b border-ink/10 bg-paper-deep">
-          <span className="font-display text-8xl font-light text-ink/15 italic select-none">?</span>
+          <span className="text-7xl leading-none select-none">{entry.emoji}</span>
         </div>
         <div className="flex grow flex-col p-6">
           <div className="text-[10px] font-semibold tracking-[0.25em] text-red uppercase">
