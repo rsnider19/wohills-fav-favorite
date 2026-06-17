@@ -38,15 +38,21 @@ export default function EntryCard({
           </div>
         )}
         <div className="flex aspect-[4/3] items-center justify-center border-b border-ink/10 bg-paper-deep">
-          <span className="text-7xl leading-none select-none">{entry.emoji}</span>
+          <span className="font-display text-8xl font-light text-ink/15 italic select-none">?</span>
         </div>
         <div className="flex grow flex-col p-6">
-          <div className="text-[10px] font-semibold tracking-[0.25em] text-red uppercase">
-            ★ Mystery float
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[10px] font-semibold tracking-[0.25em] text-red uppercase">
+                ★ Mystery float
+              </div>
+              <h3 className="mt-1 font-display text-[1.65rem] leading-tight font-semibold">
+                {entry.street}
+              </h3>
+            </div>
+            <span className="text-3xl leading-none">{entry.emoji}</span>
           </div>
-          <h3 className="mt-1 mb-6 grow font-display text-[1.65rem] leading-tight font-semibold">
-            {entry.street}
-          </h3>
+          <div className="mb-6 grow" />
           <button
             type="button"
             disabled

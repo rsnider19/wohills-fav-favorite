@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
     "set-window": "node scripts/set-voting-window.mjs",
-    "seed-floats": "node scripts/seed-floats.mjs"
+    "seed-floats": "node scripts/seed-floats.mjs",
+    "seed-float-images": "node scripts/seed-float-images.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.1",
