@@ -31,14 +31,21 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
   const [now, setNow] = useState(() => new Date())
+  // TEMP: header toggle to preview pre-vote vs. live-voting UI without touching
+  // the database. null = use real settings/clock. Remove when done previewing.
+  const [previewMode, setPreviewMode] = useState<'prevote' | 'live' | null>(null)
 
   // The window is enforced server-side by RLS against the database clock;
   // this clock only drives the countdown display and button states.
   const opensAt = settings.voting_opens_at ? new Date(settings.voting_opens_at) : null
   const closesAt = settings.voting_closes_at ? new Date(settings.voting_closes_at) : null
-  const beforeOpen = opensAt !== null && now < opensAt
-  const afterClose = closesAt !== null && now >= closesAt
-  const votingOpen = settings.voting_open && !beforeOpen && !afterClose
+  const realBeforeOpen = opensAt !== null && now < opensAt
+  const realAfterClose = closesAt !== null && now >= closesAt
+  const beforeOpen = previewMode ? previewMode === 'prevote' : realBeforeOpen
+  const afterClose = previewMode ? false : realAfterClose
+  const votingOpen = previewMode
+    ? previewMode === 'live'
+    : settings.voting_open && !beforeOpen && !afterClose
 
   useEffect(() => {
     const tick = setInterval(() => setNow(new Date()), 1000)
@@ -179,13 +186,27 @@ export default function App() {
   return (
     <div className="min-h-screen">
       {/* Header */}
-      <header className="mx-auto w-full max-w-6xl px-5 pt-6">
+      <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 pt-6">
         <div
           className="rise inline-block text-xs font-semibold tracking-[0.2em] text-ink/50 uppercase select-none"
           onClick={handleSecretTap}
         >
           Worthington Hills Parade
         </div>
+        {/* TEMP: preview toggle — remove before launch */}
+        <button
+          type="button"
+          onClick={() =>
+            setPreviewMode((m) => (m === null ? 'prevote' : m === 'prevote' ? 'live' : null))
+          }
+          className="rounded-full border border-ink/20 bg-card px-3 py-1 text-[0.65rem] font-semibold tracking-[0.15em] text-ink/60 uppercase"
+        >
+          {previewMode === 'prevote'
+            ? 'Preview: Pre-Vote'
+            : previewMode === 'live'
+              ? 'Preview: Live'
+              : 'Preview: Live Settings'}
+        </button>
       </header>
 
       {/* Hero */}
