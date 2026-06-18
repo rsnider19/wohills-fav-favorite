@@ -193,20 +193,22 @@ export default function App() {
         >
           Worthington Hills Parade
         </div>
-        {/* TEMP: preview toggle — remove before launch */}
-        <button
-          type="button"
-          onClick={() =>
-            setPreviewMode((m) => (m === null ? 'prevote' : m === 'prevote' ? 'live' : null))
-          }
-          className="rounded-full border border-ink/20 bg-card px-3 py-1 text-[0.65rem] font-semibold tracking-[0.15em] text-ink/60 uppercase"
-        >
-          {previewMode === 'prevote'
-            ? 'Preview: Pre-Vote'
-            : previewMode === 'live'
-              ? 'Preview: Live'
-              : 'Preview: Live Settings'}
-        </button>
+        {/* TEMP: admin-only preview toggle — remove before launch */}
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() =>
+              setPreviewMode((m) => (m === null ? 'prevote' : m === 'prevote' ? 'live' : null))
+            }
+            className="rounded-full border border-ink/20 bg-card px-3 py-1 text-[0.65rem] font-semibold tracking-[0.15em] text-ink/60 uppercase"
+          >
+            {previewMode === 'prevote'
+              ? 'Preview: Pre-Vote'
+              : previewMode === 'live'
+                ? 'Preview: Live'
+                : 'Preview: Live Settings'}
+          </button>
+        )}
       </header>
 
       {/* Hero */}
