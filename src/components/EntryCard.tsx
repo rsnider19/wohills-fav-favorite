@@ -43,10 +43,7 @@ export default function EntryCard({
         <div className="flex grow flex-col p-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-[10px] font-semibold tracking-[0.25em] text-red uppercase">
-                ★ Mystery float
-              </div>
-              <h3 className="mt-1 font-display text-[1.65rem] leading-tight font-semibold">
+              <h3 className="font-display text-[1.65rem] leading-tight font-semibold">
                 {entry.street}
               </h3>
             </div>

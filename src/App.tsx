@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import type { Entry, ResultRow, Settings } from './types'
+import badge from './assets/dynamic-duos-badge.png'
 import Countdown from './components/Countdown'
 import EntryCard from './components/EntryCard'
 import PhoneAuth from './components/PhoneAuth'
@@ -219,44 +220,29 @@ export default function App() {
         >
           July 4th, 2026 ✦ Fan Favorite Ballot
         </p>
-        <h1
-          className="rise font-display text-[clamp(3.25rem,11vw,8rem)] leading-[0.92] font-semibold tracking-tight text-ink"
-          style={{ animationDelay: '0.12s' }}
-        >
-          Dynamic
-          <br />
-          <em className="font-light text-red">Duos</em>
-          <span className="align-top text-[0.35em] text-cobalt"> ★</span>
-        </h1>
-        <div
-          className="rise mt-8 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between"
-          style={{ animationDelay: '0.2s' }}
-        >
-          <p className="max-w-md leading-relaxed text-ink/65">
-            Every street built a float around a dynamic duo. Pick the one that stole the show —
-            one vote per neighbor, and you can change your mind any time before voting closes.
-          </p>
-          <p className="shrink-0 text-sm text-ink/45">
-            {settings.results_visible
-              ? 'Results are in'
-              : votingOpen
-                ? 'Voting is open'
-                : beforeOpen
-                  ? 'Voting opens soon'
-                  : 'Voting is closed'}{' '}
-            · {entries.length || 6} entries
-          </p>
+        <h1 className="sr-only">Worthington Hills Dynamic Duos</h1>
+        <div className="flex flex-col items-center gap-10 lg:flex-row lg:items-center lg:gap-12">
+          <div className="w-full lg:w-1/2">
+            <img
+              src={badge}
+              alt="Worthington Hills Dynamic Duos 2026 — America's Semiquincentennial"
+              className="rise mx-auto w-full max-w-xs sm:max-w-sm"
+              style={{ animationDelay: '0.12s' }}
+            />
+          </div>
+          <div className="w-full lg:w-1/2">
+            {!loading && beforeOpen && opensAt && (
+              <div className="rise" style={{ animationDelay: '0.28s' }}>
+                <Countdown label="Voting opens in" target={opensAt} now={now} />
+              </div>
+            )}
+            {!loading && votingOpen && closesAt && (
+              <div className="rise" style={{ animationDelay: '0.28s' }}>
+                <Countdown label="Voting closes in" target={closesAt} now={now} />
+              </div>
+            )}
+          </div>
         </div>
-        {!loading && beforeOpen && opensAt && (
-          <div className="rise mt-10 max-w-xl" style={{ animationDelay: '0.28s' }}>
-            <Countdown label="Voting opens in" target={opensAt} now={now} />
-          </div>
-        )}
-        {!loading && votingOpen && closesAt && (
-          <div className="rise mt-10 max-w-xl" style={{ animationDelay: '0.28s' }}>
-            <Countdown label="Voting closes in" target={closesAt} now={now} />
-          </div>
-        )}
         {!loading && !votingOpen && !beforeOpen && !settings.results_visible && (
           <div className="rise mt-8 inline-block rounded-xl border border-ink/15 bg-card px-5 py-3 text-sm text-ink/70">
             Voting is closed. Results will be announced soon — stay tuned.
