@@ -1,0 +1,5 @@
+# Never ship local env files to Vercel's build — they override the
+# project env vars (Settings → Environment Variables) and would bake
+# local Supabase (127.0.0.1) into the production bundle.
+.env
+.env.*
