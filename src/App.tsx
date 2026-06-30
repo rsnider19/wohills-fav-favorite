@@ -8,10 +8,11 @@ import EntryCard from './components/EntryCard'
 import PhoneAuth from './components/PhoneAuth'
 import Results from './components/Results'
 
-// Deterministic 32-bit hash of an entry id (FNV-1a). Gives each float a stable,
-// well-mixed sort key so the ballot order looks random but never reshuffles.
-function hashId(id: string): number {
-  let h = 0x811c9dc5
+// Seeded 32-bit hash of an entry id (FNV-1a). Combined with a per-session seed
+// it gives each float a well-mixed sort key: the ballot order is random per page
+// load, but stable for a given seed so it never reshuffles mid-vote.
+function hashId(id: string, seed: number): number {
+  let h = (0x811c9dc5 ^ seed) >>> 0
   for (let i = 0; i < id.length; i++) {
     h ^= id.charCodeAt(i)
     h = Math.imul(h, 0x01000193)
@@ -42,6 +43,9 @@ export default function App() {
   const [forcedFloat] = useState(
     () => new URLSearchParams(window.location.search).get('f')?.trim() || null,
   )
+  // Random seed picked once per page load so each visitor sees a different
+  // ballot order, while staying fixed for the session (no reshuffle on refresh).
+  const [shuffleSeed] = useState(() => Math.floor(Math.random() * 0xffffffff))
   const [pendingVote, setPendingVote] = useState<Entry | null>(null)
   const [voteBusy, setVoteBusy] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -200,16 +204,19 @@ export default function App() {
 
   // Ballot order: randomized so no float gets a positional advantage, with an
   // optional ?f=<entry number> override that floats one entry to the very top.
-  // The shuffle key is hashed from the entry id, so the order is stable across
-  // the 30-second refreshes (no reshuffling mid-vote) yet effectively random.
+  // The sort key mixes a per-load random seed with the entry id, so the order is
+  // random per visit yet stable across the 30-second refreshes (no mid-vote
+  // reshuffle).
   const orderedEntries = useMemo(() => {
-    const sorted = [...entries].sort((a, b) => hashId(a.id) - hashId(b.id))
+    const sorted = [...entries].sort(
+      (a, b) => hashId(a.id, shuffleSeed) - hashId(b.id, shuffleSeed),
+    )
     if (forcedFloat) {
       const idx = sorted.findIndex((e) => String(e.entry_number) === forcedFloat)
       if (idx > 0) sorted.unshift(sorted.splice(idx, 1)[0])
     }
     return sorted
-  }, [entries, forcedFloat])
+  }, [entries, forcedFloat, shuffleSeed])
 
   const ticker = 'Worthington Hills ✦ 4th of July 2026 ✦ Fan Favorite ✦ One Neighbor, One Vote ✦ '
 
