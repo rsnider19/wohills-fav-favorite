@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import type { Entry, ResultRow, Settings } from './types'
@@ -7,6 +7,17 @@ import Countdown from './components/Countdown'
 import EntryCard from './components/EntryCard'
 import PhoneAuth from './components/PhoneAuth'
 import Results from './components/Results'
+
+// Deterministic 32-bit hash of an entry id (FNV-1a). Gives each float a stable,
+// well-mixed sort key so the ballot order looks random but never reshuffles.
+function hashId(id: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return h >>> 0
+}
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -26,6 +37,11 @@ export default function App() {
     () => new URLSearchParams(window.location.search).has('signin'),
   )
   const secretTaps = useRef({ count: 0, timer: 0 })
+  // Optional ?f=<entry number> pins that float to the top of the ballot;
+  // everyone else stays in the randomized order. Read once at load.
+  const [forcedFloat] = useState(
+    () => new URLSearchParams(window.location.search).get('f')?.trim() || null,
+  )
   const [pendingVote, setPendingVote] = useState<Entry | null>(null)
   const [voteBusy, setVoteBusy] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -182,6 +198,19 @@ export default function App() {
     }, 1500)
   }
 
+  // Ballot order: randomized so no float gets a positional advantage, with an
+  // optional ?f=<entry number> override that floats one entry to the very top.
+  // The shuffle key is hashed from the entry id, so the order is stable across
+  // the 30-second refreshes (no reshuffling mid-vote) yet effectively random.
+  const orderedEntries = useMemo(() => {
+    const sorted = [...entries].sort((a, b) => hashId(a.id) - hashId(b.id))
+    if (forcedFloat) {
+      const idx = sorted.findIndex((e) => String(e.entry_number) === forcedFloat)
+      if (idx > 0) sorted.unshift(sorted.splice(idx, 1)[0])
+    }
+    return sorted
+  }, [entries, forcedFloat])
+
   const ticker = 'Worthington Hills ✦ 4th of July 2026 ✦ Fan Favorite ✦ One Neighbor, One Vote ✦ '
 
   return (
@@ -270,7 +299,7 @@ export default function App() {
           <div className="animate-pulse py-16 text-ink/40">Loading the lineup…</div>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {entries.map((entry, i) => (
+            {orderedEntries.map((entry, i) => (
               <div key={entry.id} className="rise" style={{ animationDelay: `${0.08 * i}s` }}>
                 <EntryCard
                   entry={entry}
