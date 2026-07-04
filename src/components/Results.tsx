@@ -3,7 +3,6 @@ import type { ResultRow } from '../types'
 export default function Results({ results }: { results: ResultRow[] }) {
   const top = results.slice(0, 3)
   const max = Math.max(1, ...top.map((r) => r.vote_count))
-  const total = results.reduce((sum, r) => sum + r.vote_count, 0)
 
   return (
     <section className="border-b border-ink/15 bg-paper-deep/60" aria-label="Results">
@@ -11,14 +10,9 @@ export default function Results({ results }: { results: ResultRow[] }) {
         <p className="mb-3 text-xs font-semibold tracking-[0.25em] text-red uppercase">
           ★ The results are in
         </p>
-        <div className="mb-10 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <h2 className="font-display text-4xl font-semibold text-ink sm:text-5xl">
-            Fan Favorite
-          </h2>
-          <p className="text-sm text-ink/55">
-            {total} neighbor{total === 1 ? '' : 's'} voted. Thanks for celebrating with us!
-          </p>
-        </div>
+        <h2 className="mb-10 font-display text-4xl font-semibold text-ink sm:text-5xl">
+          Fan Favorite
+        </h2>
 
         <ol className="divide-y divide-ink/10">
           {top.map((r, i) => (
