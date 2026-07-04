@@ -1,7 +1,8 @@
 import type { ResultRow } from '../types'
 
 export default function Results({ results }: { results: ResultRow[] }) {
-  const max = Math.max(1, ...results.map((r) => r.vote_count))
+  const top = results.slice(0, 3)
+  const max = Math.max(1, ...top.map((r) => r.vote_count))
   const total = results.reduce((sum, r) => sum + r.vote_count, 0)
 
   return (
@@ -20,7 +21,7 @@ export default function Results({ results }: { results: ResultRow[] }) {
         </div>
 
         <ol className="divide-y divide-ink/10">
-          {results.map((r, i) => (
+          {top.map((r, i) => (
             <li key={r.entry_id} className="flex items-center gap-5 py-5">
               <span
                 className={`w-10 shrink-0 font-display text-3xl italic ${
