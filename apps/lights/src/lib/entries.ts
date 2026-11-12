@@ -8,49 +8,72 @@ import { ENTRY_COLUMNS, type PreparedPhoto } from './submit'
 
 /** The signed-in phone's own entry, any status. `entry` is undefined until known (signed
  *  out, or still loading), then the row or null. Polled every 30 s so "pending" turns into
- *  "on the board" without a reload once the admin approves it. */
-export function useMyEntry(session: Session | null): { entry: EntryRow | null | undefined; refresh: () => Promise<void> } {
+ *  "on the board" without a reload once the admin approves it. `failed` is true while the
+ *  last attempt for this phone failed and nothing is known yet (offline), so the page can
+ *  say so instead of "Checking…" forever. */
+export function useMyEntry(session: Session | null): {
+  entry: EntryRow | null | undefined
+  failed: boolean
+  refresh: () => Promise<void>
+} {
   const client = useSupabase()
   const uid = session?.user.id ?? null
+  const [failedFor, setFailedFor] = useState<string | null>(null)
   const { data, refresh } = usePolling(
     async () => {
       if (!uid) return null
       const { data, error } = await client.from('houses').select(ENTRY_COLUMNS).eq('submitted_by', uid).maybeSingle<EntryRow>()
+      setFailedFor(error ? uid : null)
       if (error) throw error
       // Tagged with the user, so a previous account's entry never shows after a switch.
       return { uid, entry: data }
     },
     { enabled: uid !== null },
   )
-  return { entry: data && data.uid === uid ? data.entry : undefined, refresh }
+  const entry = data && data.uid === uid ? data.entry : undefined
+  return { entry, failed: entry === undefined && uid !== null && failedFor === uid, refresh }
 }
 
 /** Whether the signed-in phone is the admin: undefined while asking (core's useIsAdmin
- *  says false until it knows, which would flash "not the admin" on /admin). */
-export function useAdminCheck(session: Session | null): boolean | undefined {
+ *  says false until it knows, which would flash "not the admin" on /admin), 'error' when
+ *  the question itself failed (offline), so a dropped request never reads as "not the
+ *  admin" either. `retry` asks again. */
+export function useAdminCheck(session: Session | null): { admin: boolean | 'error' | undefined; retry: () => void } {
   const client = useSupabase()
   const uid = session?.user.id ?? null
-  const [answer, setAnswer] = useState<{ uid: string; admin: boolean } | null>(null)
+  const [answer, setAnswer] = useState<{ uid: string; admin: boolean | 'error' } | null>(null)
+  const [attempt, setAttempt] = useState(0)
   useEffect(() => {
     if (!uid) return
     let cancelled = false
     client
       .schema('public')
       .rpc('is_admin')
-      .then(({ data }) => {
-        if (!cancelled) setAnswer({ uid, admin: data === true })
-      })
+      .then(
+        ({ data, error }) => {
+          if (!cancelled) setAnswer({ uid, admin: error ? 'error' : data === true })
+        },
+        () => {
+          if (!cancelled) setAnswer({ uid, admin: 'error' })
+        },
+      )
     return () => {
       cancelled = true
     }
-  }, [client, uid])
-  if (!uid) return false
-  return answer?.uid === uid ? answer.admin : undefined
+  }, [client, uid, attempt])
+  const retry = useCallback(() => {
+    setAnswer(null)
+    setAttempt((n) => n + 1)
+  }, [])
+  return { admin: !uid ? false : answer?.uid === uid ? answer.admin : undefined, retry }
 }
 
 /** Every house, for the admin (their select policy returns all statuses; M3 D9).
  *  Status changes are optimistic: the row moves to its new list at once, and goes back
- *  (with the error rethrown) if the database refuses. */
+ *  (with the error rethrown) if the database refuses. An override holds only while the
+ *  polled row is the one it was made on (same `updated_at`): once a fetch returns the row
+ *  as written, the database's version shows, and if that fetch failed the row still
+ *  shows its new status instead of jumping back until the next poll. */
 export function useAdminEntries(enabled: boolean) {
   const client = useSupabase()
   const { data, loading, refresh } = usePolling(
@@ -61,26 +84,31 @@ export function useAdminEntries(enabled: boolean) {
     },
     { enabled },
   )
-  const [optimistic, setOptimistic] = useState<Record<string, HouseStatus>>({})
-  const rows = data?.map((r) => (optimistic[r.id] ? { ...r, status: optimistic[r.id] } : r))
+  const [optimistic, setOptimistic] = useState<Record<string, { status: HouseStatus; on: string }>>({})
+  const rows = data?.map((r) => {
+    const o = optimistic[r.id]
+    return o && o.on === r.updated_at ? { ...r, status: o.status } : r
+  })
 
   const setStatus = useCallback(
-    async (id: string, status: HouseStatus) => {
-      setOptimistic((o) => ({ ...o, [id]: status }))
+    async (row: EntryRow, status: HouseStatus) => {
+      setOptimistic((o) => ({ ...o, [row.id]: { status, on: row.updated_at } }))
       try {
-        await setEntryStatus(client, id, status)
-        await refresh()
-      } finally {
+        await setEntryStatus(client, row.id, status)
+      } catch (err) {
         setOptimistic((o) => {
           const next = { ...o }
-          delete next[id]
+          delete next[row.id]
           return next
         })
+        throw err
       }
+      await refresh()
     },
     [client, refresh],
   )
-  return { rows, loading, refresh, setStatus }
+  // `failed`: the first load is over and nothing came back (offline or refused).
+  return { rows, failed: enabled && !loading && data === undefined, refresh, setStatus }
 }
 
 /** Throws if the database refused (e.g. the phone is no longer the admin: zero rows). */
@@ -107,10 +135,11 @@ export async function adminEditEntry(
   { now = Date.now, random = () => crypto.randomUUID() }: { now?: () => number; random?: () => string } = {},
 ): Promise<void> {
   const p = roundPoint(edit.point)
+  const was = roundPoint(row)
   const patch: Record<string, unknown> = {}
   if (edit.title !== row.title) patch.title = edit.title
   if (edit.address !== row.address) patch.address = edit.address
-  if (p.lat !== row.lat || p.lng !== row.lng) Object.assign(patch, p)
+  if (p.lat !== was.lat || p.lng !== was.lng) Object.assign(patch, p)
   let uploaded: string | null = null
   if (edit.photo) {
     uploaded = photoPath(row.submitted_by, now(), random()).replace(/\/(?=[^/]+$)/, '/admin-')

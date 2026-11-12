@@ -1,6 +1,6 @@
 import { uploadPublicImage, type AnySupabaseClient } from '@wohills/core'
 import type { EntryRow } from '../types'
-import { photoPath } from './entry'
+import { photoPath, tidy, titleValue } from './entry'
 import { roundPoint, type LatLng } from './geo'
 
 export const ENTRY_COLUMNS = 'id, entry_number, title, address, lat, lng, photo_url, submitted_by, status, created_at, updated_at'
@@ -40,15 +40,28 @@ interface Options {
 
 /** Columns an edit would change (an empty object means nothing to save). Pure. */
 export function changedFields(house: EntryRow, draft: EntryDraft): Partial<Pick<EntryRow, 'address' | 'lat' | 'lng' | 'title'>> {
+  // Compare like with like (rounded, tidied): any column sent resets an approved entry to
+  // pending, so a stored value with more decimals or stray spaces (set by SQL or an
+  // older client) must not count as a change the owner never made.
   const p = roundPoint(draft.point)
+  const was = roundPoint(house)
   const out: Partial<Pick<EntryRow, 'address' | 'lat' | 'lng' | 'title'>> = {}
-  if (draft.address !== house.address) out.address = draft.address
-  if (p.lat !== house.lat || p.lng !== house.lng) {
+  if (draft.address !== tidy(house.address)) out.address = draft.address
+  if (p.lat !== was.lat || p.lng !== was.lng) {
     out.lat = p.lat
     out.lng = p.lng
   }
-  if (draft.title !== house.title) out.title = draft.title
+  if (draft.title !== titleValue(house.title ?? '')) out.title = draft.title
   return out
+}
+
+/** The owner's entry as the database has it now, or null. After a send that died on the
+ *  network, the row may have gone in anyway (only the answer was lost): the form asks
+ *  this before saying "didn't go through", so a retry never meets "already entered". */
+export async function ownEntry(client: AnySupabaseClient, uid: string): Promise<EntryRow | null> {
+  const { data, error } = await client.from('houses').select(ENTRY_COLUMNS).eq('submitted_by', uid).maybeSingle<EntryRow>()
+  if (error) throw error
+  return data
 }
 
 async function upload(client: AnySupabaseClient, uid: string, photo: PreparedPhoto, o: Options) {

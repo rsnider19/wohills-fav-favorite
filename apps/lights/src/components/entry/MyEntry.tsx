@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useSupabase } from '@wohills/core'
 import { Dialog } from '@wohills/ui'
 import { ENTER, MY_ENTRY } from '../../copy'
+import { entryErrorKind } from '../../lib/entry'
 import { EntryLockedError, withdrawEntry } from '../../lib/submit'
 import type { EntryRow } from '../../types'
 import { HouseCard } from '../HouseCard'
@@ -32,7 +33,11 @@ export function MyEntry({ entry, canEdit, votingStarted, votingOpensAt, onEdit, 
       onWithdrawn()
     } catch (err) {
       setConfirming(false)
-      onError(err instanceof EntryLockedError ? ENTER.sendErrors.locked : ENTER.sendErrors.unknown)
+      onError(
+        err instanceof EntryLockedError
+          ? ENTER.sendErrors[votingStarted ? 'locked' : 'lockedClosed']
+          : MY_ENTRY.withdrawFailed[entryErrorKind(err) === 'network' ? 'network' : 'unknown'],
+      )
     } finally {
       setBusy(false)
     }

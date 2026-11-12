@@ -162,17 +162,23 @@ export const ENTER = {
   intro:
     'Three quick steps: snap your house, drop a pin on it, give it a name if you like. The admin checks every entry before it lights up the lineup.',
   steps: ['Snap', 'Pin', 'Send'] as const,
-  rules: (votingOpensAt: Date | null) => [
+  /** `late`: voting has already opened while entries still are (the windows overlap), so
+   *  an entry is locked the moment it is sent (M3 D5). */
+  rules: (votingOpensAt: Date | null, late = false) => [
     'One house per phone. Your number is never shown.',
     'Only houses in Worthington Hills can enter.',
-    votingOpensAt
-      ? `You can change or withdraw your entry until voting opens ${formatDay(votingOpensAt)}.`
-      : 'Once voting opens, entries are locked.',
+    late
+      ? "Voting has already started, so an entry is locked as soon as it's sent: no changes or withdrawing after that."
+      : votingOpensAt
+        ? `You can change or withdraw your entry until voting opens ${formatDay(votingOpensAt)}.`
+        : 'Once voting opens, entries are locked.',
   ],
   signInCta: 'Verify your phone to start',
   signInNotice: 'Sign in to enter your house.',
   signInToSee: 'Already entered? Sign in',
   checking: 'Checking for your entry…',
+  checkFailed: "We couldn't check whether this phone already has an entry. Check your connection and try again.",
+  retry: 'Try again',
   // The page when entries aren't open.
   closedTitle: {
     before: 'Not yet!',
@@ -226,6 +232,7 @@ export const ENTER = {
   pinHint: {
     none: 'Use your location, look up the address, or move the map until the pin sits on your house.',
     inside: 'Pin is inside Worthington Hills. Drag the map to fine-tune it.',
+    insideNoMap: 'Pin is inside Worthington Hills.',
     outside: "That spot is outside Worthington Hills. Only houses in the neighborhood can enter.",
     zoom: 'Zoom in to make sure the pin is on your house.',
   },
@@ -277,6 +284,7 @@ export const ENTER = {
     closed: "Entries just closed, so this one didn't go through.",
     outside: 'That pin is outside Worthington Hills. Move it onto your house and try again.',
     locked: 'Voting has started, so your entry is locked now.',
+    lockedClosed: "Entries are paused or closed right now, so your entry can't be changed.",
     'photo-too-large': 'That photo is too big. Go back and choose a smaller one.',
     network: "Your entry didn't go through: the connection dropped. Check it and try again. Nothing was lost.",
     unknown: "Something went wrong and your entry didn't go through. Try again.",
@@ -289,10 +297,14 @@ export const ENTER = {
   doneEyebrow: '★ Entry received',
   doneTitle: "You're on the list!",
   doneBody: 'Your house is waiting for approval. As soon as the admin approves it, it lights up the lineup.',
-  doneNext: (votingOpensAt: Date | null) => [
+  doneNext: (votingOpensAt: Date | null, late = false) => [
     'The admin checks your entry, usually within a day.',
     'It lights up in the lineup.',
-    votingOpensAt ? `Voting opens ${formatDay(votingOpensAt)}. Tell the neighbors!` : 'Then the neighborhood votes. Tell the neighbors!',
+    late
+      ? 'Voting is already open, so neighbors can vote for it as soon as it lights up. Tell them!'
+      : votingOpensAt
+        ? `Voting opens ${formatDay(votingOpensAt)}. Tell the neighbors!`
+        : 'Then the neighborhood votes. Tell the neighbors!',
   ],
   backToLineup: 'Back to the lineup',
 }
@@ -329,6 +341,10 @@ export const MY_ENTRY = {
   withdrawConfirm: 'Withdraw entry',
   withdrawCancel: 'Keep it',
   withdrawing: 'Withdrawing…',
+  withdrawFailed: {
+    network: "Your entry wasn't withdrawn: the connection dropped. Check it and try again.",
+    unknown: "Something went wrong and your entry wasn't withdrawn. Try again.",
+  },
   updated: (iso: string) => `Last changed ${formatStamp(iso)}`,
 }
 
@@ -346,6 +362,9 @@ export const ADMIN = {
     hidden: 'Nothing hidden.',
   },
   loading: 'Loading entries…',
+  loadFailed: "The entries didn't load. Check your connection and try again.",
+  checkFailed: "We couldn't check whether this phone is the admin. Check your connection and try again.",
+  retry: 'Try again',
   submitted: (iso: string) => `Sent ${formatStamp(iso)}`,
   edited: (iso: string) => `changed ${formatStamp(iso)}`,
   noTitle: 'No name',

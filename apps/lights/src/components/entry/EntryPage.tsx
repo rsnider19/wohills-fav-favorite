@@ -19,6 +19,8 @@ interface Props {
   now: Date
   /** undefined while unknown (signed out or loading), then the row or null. */
   entry: EntryRow | null | undefined
+  /** Looking up the phone's entry failed (offline); `entry` is still undefined. */
+  entryFailed: boolean
   refreshEntry: () => Promise<void>
   /** A change the gallery should pick up at once (withdrawn). */
   onChanged: () => void
@@ -29,12 +31,18 @@ interface Props {
 const toDate = (iso: string | null) => (iso ? new Date(iso) : null)
 
 /** /enter: sign in, then the form, or "My entry" for a phone that already has one. */
-export function EntryPage({ session, ready, settings, status, now, entry, refreshEntry, onChanged, onSignIn, flash }: Props) {
-  // The row the form just created, until the poll catches up (and to show "You're on the list!").
+export function EntryPage({ session, ready, settings, status, now, entry, entryFailed, refreshEntry, onChanged, onSignIn, flash }: Props) {
+  // The row the form just created, until the poll catches up.
   const [sent, setSent] = useState<EntryRow | null>(null)
+  // "You're on the list!" shows until they move on; separate from `sent`, so "See my entry"
+  // shows the entry even if the refetch hasn't answered yet (never the empty form again).
+  const [done, setDone] = useState(false)
   const [editing, setEditing] = useState(false)
   const votingOpensAt = toDate(settings.voting_opens_at)
   const votingStarted = votingOpensAt !== null && now >= votingOpensAt
+  // Entries are open but owner edits are not (voting has opened: the windows overlap), so
+  // a new entry is locked as soon as it exists. Mirrors lights.owner_edits_allowed().
+  const late = status.submissionsOpen && !status.ownerCanEdit
   const box = geofence(settings)
   const mine = entry ?? (sent && sent.submitted_by === session?.user.id ? sent : null)
 
@@ -48,7 +56,7 @@ export function EntryPage({ session, ready, settings, status, now, entry, refres
       <Panel>
         <p className="text-lg leading-relaxed text-fg/85">{ENTER.intro}</p>
         <ul data-slot="rules" className="mt-6 space-y-3">
-          {ENTER.rules(votingOpensAt).map((rule) => (
+          {ENTER.rules(votingOpensAt, late).map((rule) => (
             <li key={rule}>{rule}</li>
           ))}
         </ul>
@@ -60,26 +68,35 @@ export function EntryPage({ session, ready, settings, status, now, entry, refres
       <ClosedPanel status={status} settings={settings} now={now} onSignIn={onSignIn} />
     )
   } else if (entry === undefined && !sent) {
-    body = (
+    body = entryFailed ? (
+      <Panel off>
+        <p role="alert" className="text-fg/75">
+          {ENTER.checkFailed}
+        </p>
+        <button type="button" className="btn-ghost mt-6" onClick={() => void refreshEntry()}>
+          {ENTER.retry}
+        </button>
+      </Panel>
+    ) : (
       <Panel off>
         <p role="status" className="text-fg/75">
           {ENTER.checking}
         </p>
       </Panel>
     )
-  } else if (mine && sent && !editing) {
+  } else if (mine && done && !editing) {
     eyebrow = ENTER.doneEyebrow
     title = ENTER.doneTitle
     body = (
       <Panel>
         <p className="text-lg leading-relaxed text-fg/85">{ENTER.doneBody}</p>
         <ol data-slot="next-steps" className="mt-6 space-y-3">
-          {ENTER.doneNext(votingOpensAt).map((line) => (
+          {ENTER.doneNext(votingOpensAt, late).map((line) => (
             <li key={line}>{line}</li>
           ))}
         </ol>
         <div className="mt-8 flex flex-wrap gap-3">
-          <button type="button" className="btn-bulb" onClick={() => setSent(null)}>
+          <button type="button" className="btn-bulb" onClick={() => setDone(false)}>
             {ENTER.seeMyEntry}
           </button>
           <a href={routeHref('home')} onClick={onRouteClick('home')} className="btn-ghost">
@@ -125,6 +142,7 @@ export function EntryPage({ session, ready, settings, status, now, entry, refres
           onEdit={() => setEditing(true)}
           onWithdrawn={async () => {
             setSent(null)
+            setDone(false)
             await refreshEntry()
             onChanged()
             flash(TOASTS.withdrawn)
@@ -144,9 +162,10 @@ export function EntryPage({ session, ready, settings, status, now, entry, refres
           uid={session.user.id}
           box={box}
           votingOpensAt={votingOpensAt}
-          late={votingStarted}
+          late={late}
           onDone={(row) => {
             setSent(row)
+            setDone(true)
             refreshEntry()
           }}
           onShowEntry={() => refreshEntry()}

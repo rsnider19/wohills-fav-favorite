@@ -142,4 +142,11 @@ describe('changedFields', () => {
       lng: -83.051571,
     })
   })
+
+  it("doesn't count stored values the form only tidies or rounds as changes (each would reset approval)", () => {
+    const messy: EntryRow = { ...house, address: ' 1221  Candlewood Dr ', title: ' Sparkle  Manor ', lat: 40.1231449, lng: -83.0515712 }
+    const same = { ...draft, photo: null, address: '1221 Candlewood Dr', title: 'Sparkle Manor', point: { lat: 40.1231449, lng: -83.0515712 } }
+    expect(changedFields(messy, same)).toEqual({})
+    expect(changedFields(messy, { ...same, title: null })).toEqual({ title: null })
+  })
 })

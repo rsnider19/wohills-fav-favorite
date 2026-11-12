@@ -25,7 +25,7 @@ export function DetailsStep({ title, onTitle, preview, mode, notes, sending, err
   const tooLong = titleTooLong(title)
   return (
     <div className="space-y-6">
-      <h2 data-slot="step-title">{ENTER.detailsTitle}</h2>
+      <h2 data-slot="step-title" tabIndex={-1}>{ENTER.detailsTitle}</h2>
 
       <div>
         <label htmlFor={titleId} data-slot="field-label">

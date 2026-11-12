@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { prepareImageForUpload } from '@wohills/core'
 import { PhotoPicker } from '@wohills/ui'
 import { ENTER } from '../../copy'
+import { photoErrorKind, preparePhoto } from '../../lib/photo'
 import { Note } from '../Page'
 import type { DraftPhoto } from './SubmitWizard'
 
@@ -13,17 +13,9 @@ interface Props {
   onNext: () => void
 }
 
-/** Pipeline errors (core/image) → our copy. */
-function photoError(err: unknown): string {
-  const m = err instanceof Error ? err.message : ''
-  if (/heic/i.test(m)) return ENTER.photoErrors.heic
-  if (/unsupported/i.test(m)) return ENTER.photoErrors.format
-  if (/too large/i.test(m)) return ENTER.photoErrors.size
-  return ENTER.photoErrors.other
-}
-
 /** Step 1: the camera (rear) or the photo library, then a preview. The photo is resized to
- *  a 1600px JPEG here, which also strips EXIF (including GPS); nothing uploads until Send. */
+ *  a 1600px JPEG here, which also strips EXIF (including GPS; lib/photo.ts makes sure of it
+ *  even when the browser can't re-encode); nothing uploads until Send. */
 export function PhotoStep({ photo, currentUrl, onPhoto, onNext }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -32,10 +24,10 @@ export function PhotoStep({ photo, currentUrl, onPhoto, onNext }: Props) {
     setBusy(true)
     setError(null)
     try {
-      const prepared = await prepareImageForUpload(file)
+      const prepared = await preparePhoto(file)
       onPhoto({ ...prepared, previewUrl: URL.createObjectURL(prepared.blob) })
     } catch (err) {
-      setError(photoError(err))
+      setError(ENTER.photoErrors[photoErrorKind(err)])
     } finally {
       setBusy(false)
     }
@@ -45,7 +37,7 @@ export function PhotoStep({ photo, currentUrl, onPhoto, onNext }: Props) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 data-slot="step-title">{ENTER.photoTitle}</h2>
+        <h2 data-slot="step-title" tabIndex={-1}>{ENTER.photoTitle}</h2>
         <p className="mt-2 text-fg/75">{ENTER.photoHelp}</p>
       </div>
 

@@ -55,7 +55,7 @@ export default function App() {
     refresh: refreshSettings,
   } = useContestSettings<LightsSettings>({ columns: LIGHTS_SETTINGS_COLUMNS, initial: DEFAULT_LIGHTS_SETTINGS })
   const { data: houses, loading: housesLoading, refresh: refreshHouses } = useApprovedHouses()
-  const { entry: myEntry, refresh: refreshMyEntry } = useMyEntry(session)
+  const { entry: myEntry, failed: myEntryFailed, refresh: refreshMyEntry } = useMyEntry(session)
   const admin = useAdminEntries(isAdmin)
 
   // ?preview=<phase> shows another phase's look without touching the database:
@@ -144,6 +144,7 @@ export default function App() {
             status={status}
             now={now}
             entry={myEntry}
+            entryFailed={myEntryFailed}
             refreshEntry={refreshMyEntry}
             onChanged={refreshHouses}
             onSignIn={() => setAuth({ notice: ENTER.signInNotice })}
@@ -154,6 +155,7 @@ export default function App() {
             session={session}
             sessionReady={sessionReady}
             rows={admin.rows}
+            failed={admin.failed}
             setStatus={admin.setStatus}
             refresh={admin.refresh}
             onChanged={refreshHouses}

@@ -3,7 +3,7 @@ import { useSupabase } from '@wohills/core'
 import { ENTER } from '../../copy'
 import { entryErrorKind, tidy, titleValue } from '../../lib/entry'
 import { inBox, type Box, type LatLng } from '../../lib/geo'
-import { EntryLockedError, submitEntry, updateEntry, type PreparedPhoto, type Stage } from '../../lib/submit'
+import { EntryLockedError, ownEntry, submitEntry, updateEntry, type PreparedPhoto, type Stage } from '../../lib/submit'
 import type { EntryRow } from '../../types'
 import { DetailsStep } from './DetailsStep'
 import { PhotoStep } from './PhotoStep'
@@ -43,6 +43,16 @@ export function SubmitWizard({ mode, uid, house, box, votingOpensAt, late, onDon
   const [stage, setStage] = useState<Stage | null>(null)
   const [error, setError] = useState<SendError | null>(null)
   const top = useRef<HTMLDivElement>(null)
+  // One send at a time: a double tap must not upload twice or race two inserts.
+  const sending = useRef(false)
+  // Set once the visitor has moved between steps (not on first render).
+  const moved = useRef(false)
+
+  // Keyboard and screen-reader users land on the new step's title, not on <body> (the
+  // button they pressed is gone). preventScroll: go() already scrolled the form's top in.
+  useEffect(() => {
+    if (moved.current) top.current?.querySelector<HTMLElement>('[data-slot="step-title"]')?.focus({ preventScroll: true })
+  }, [step])
 
   // Fetch the map chunk (MapLibre) in the background while they take the photo, so the pin
   // step opens at once. Same module as PlaceStep's React.lazy, so it downloads only once.
@@ -58,13 +68,15 @@ export function SubmitWizard({ mode, uid, house, box, votingOpensAt, late, onDon
   }, [photo])
 
   function go(next: number) {
+    moved.current = true
     setStep(next)
     setError(null)
     top.current?.scrollIntoView({ block: 'start' })
   }
 
   async function send() {
-    if (!point) return
+    if (!point || sending.current) return
+    sending.current = true
     setError(null)
     const draft = { photo, address: tidy(address), point, title: titleValue(title) }
     try {
@@ -74,15 +86,21 @@ export function SubmitWizard({ mode, uid, house, box, votingOpensAt, late, onDon
           : await updateEntry(client, house!, draft, { onStage: setStage })
       onDone(row)
     } catch (err) {
-      setError(await sendErrorKind(err))
+      // The connection dropped: the insert may have gone through with only its answer
+      // lost. If the entry is there, it's done (a retry would only hit "already entered").
+      const landed = mode === 'new' && entryErrorKind(err) === 'network' ? await ownEntry(client, uid).catch(() => null) : null
+      if (landed) onDone(landed)
+      else setError(await sendErrorKind(err))
     } finally {
       setStage(null)
+      sending.current = false
     }
   }
 
   /** 42501 means "closed" or "outside the geofence" (M3 D26): ask the database which. */
   async function sendErrorKind(err: unknown): Promise<SendError> {
-    if (err instanceof EntryLockedError) return 'locked'
+    // Owner edits lock when voting opens, or while entries are paused or closed (M3 D5).
+    if (err instanceof EntryLockedError) return votingOpensAt === null || Date.now() >= votingOpensAt.getTime() ? 'locked' : 'lockedClosed'
     const kind = entryErrorKind(err)
     if (kind !== 'rejected') return kind
     const { data: open } = await client.rpc('submissions_are_open')
@@ -129,7 +147,9 @@ export function SubmitWizard({ mode, uid, house, box, votingOpensAt, late, onDon
           address={address}
           point={point}
           source={source}
-          initial={house ? { lat: house.lat, lng: house.lng } : null}
+          // The map starts where the pin is now (a GPS fix, a lookup, the saved spot), so
+          // coming back to this step never shows the pin somewhere it isn't.
+          initial={point}
           onAddress={setAddress}
           onPoint={(p, s) => {
             setPoint(p)

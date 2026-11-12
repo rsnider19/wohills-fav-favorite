@@ -12,7 +12,9 @@ interface Props {
   session: Session | null
   sessionReady: boolean
   rows: EntryRow[] | undefined
-  setStatus: (id: string, status: HouseStatus) => Promise<void>
+  /** The queue couldn't be loaded (offline, or the database refused). */
+  failed: boolean
+  setStatus: (row: EntryRow, status: HouseStatus) => Promise<void>
   refresh: () => Promise<void>
   /** The public lineup changed (approve, hide, edit, delete): refresh it now. */
   onChanged: () => void
@@ -24,24 +26,29 @@ const TABS: HouseStatus[] = ['pending', 'approved', 'hidden']
 
 /** /admin: the moderation queue. Reached from the footer link (admin only) or by URL;
  *  everyone else gets a sign-in prompt or "not the admin". RLS enforces it either way. */
-export function AdminPage({ session, sessionReady, rows, setStatus, refresh, onChanged, onSignIn, flash }: Props) {
+export function AdminPage({ session, sessionReady, rows, failed, setStatus, refresh, onChanged, onSignIn, flash }: Props) {
   const client = useSupabase()
-  const isAdmin = useAdminCheck(session)
+  const { admin: isAdmin, retry: retryCheck } = useAdminCheck(session)
   const [tab, setTab] = useState<HouseStatus>('pending')
   const [editing, setEditing] = useState<EntryRow | null>(null)
   const [deleting, setDeleting] = useState<EntryRow | null>(null)
-  const [busyId, setBusyId] = useState<string | null>(null)
+  // Rows with a status change in flight (several can be, one per row).
+  const [busy, setBusy] = useState<ReadonlySet<string>>(new Set())
 
   async function changeStatus(row: EntryRow, status: HouseStatus) {
-    setBusyId(row.id)
+    setBusy((b) => new Set(b).add(row.id))
     try {
-      await setStatus(row.id, status)
+      await setStatus(row, status)
       flash(ADMIN.toasts[status](row.entry_number))
       onChanged()
     } catch {
       flash(ADMIN.toasts.failed)
     } finally {
-      setBusyId(null)
+      setBusy((b) => {
+        const next = new Set(b)
+        next.delete(row.id)
+        return next
+      })
     }
   }
 
@@ -63,7 +70,18 @@ export function AdminPage({ session, sessionReady, rows, setStatus, refresh, onC
 
   let body
   if (!sessionReady || isAdmin === undefined) body = null
-  else if (!session || !isAdmin) {
+  else if (isAdmin === 'error') {
+    body = (
+      <Panel off>
+        <p role="alert" className="text-fg/75">
+          {ADMIN.checkFailed}
+        </p>
+        <button type="button" className="btn-ghost mt-6" onClick={retryCheck}>
+          {ADMIN.retry}
+        </button>
+      </Panel>
+    )
+  } else if (!session || !isAdmin) {
     body = (
       <Panel off>
         <p className="text-fg/75">{session ? ADMIN.notAdmin : ADMIN.signInBody}</p>
@@ -93,7 +111,16 @@ export function AdminPage({ session, sessionReady, rows, setStatus, refresh, onC
           ))}
         </div>
         <section aria-label={ADMIN.tabs[tab]}>
-          {rows === undefined ? (
+          {rows === undefined && failed ? (
+            <Panel off>
+              <p role="alert" className="text-fg/75">
+                {ADMIN.loadFailed}
+              </p>
+              <button type="button" className="btn-ghost mt-6" onClick={() => void refresh()}>
+                {ADMIN.retry}
+              </button>
+            </Panel>
+          ) : rows === undefined ? (
             <p role="status" className="text-fg/75">
               {ADMIN.loading}
             </p>
@@ -107,7 +134,7 @@ export function AdminPage({ session, sessionReady, rows, setStatus, refresh, onC
                 <li key={row.id}>
                   <AdminRow
                     row={row}
-                    busy={busyId === row.id}
+                    busy={busy.has(row.id)}
                     onStatus={(s) => changeStatus(row, s)}
                     onEdit={() => setEditing(row)}
                     onDelete={() => setDeleting(row)}

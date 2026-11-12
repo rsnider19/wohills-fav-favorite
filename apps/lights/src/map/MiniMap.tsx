@@ -12,6 +12,10 @@ export interface MiniMapProps {
   focus: { point: LatLng; seq: number } | null
   /** Accessible name of the map canvas. */
   label: string
+  /** Shown over the map when its style can't be loaded (offline, CARTO down). */
+  failedText: string
+  /** Called once if the style can't be loaded. */
+  onFail?: () => void
   /** After every move: the pin's position (the map center) and zoom. `byUser` is true when
    *  the visitor dragged, zoomed or used the keys, false when `focus` moved the map. */
   onMove: (center: LatLng, zoom: number, byUser: boolean) => void
@@ -20,14 +24,15 @@ export interface MiniMapProps {
 /** The pin-confirm map: a fixed pin in the middle, the map moves under it (easier on a
  *  phone than dragging a small marker). Default export, loaded with React.lazy, so
  *  MapLibre is only downloaded when someone reaches the pin step. */
-export default function MiniMap({ box, initial, focus, label, onMove }: MiniMapProps) {
+export default function MiniMap({ box, initial, focus, label, failedText, onFail, onMove }: MiniMapProps) {
   const container = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const [moving, setMoving] = useState(false)
+  const [failed, setFailed] = useState(false)
   // Read the latest props from map events without re-creating the map.
-  const latest = useRef({ onMove, box, initial, label })
+  const latest = useRef({ onMove, onFail, box, initial, label })
   useEffect(() => {
-    latest.current = { onMove, box, initial, label }
+    latest.current = { onMove, onFail, box, initial, label }
   })
 
   useEffect(() => {
@@ -40,6 +45,19 @@ export default function MiniMap({ box, initial, focus, label, onMove }: MiniMapP
       label,
     })
     mapRef.current = map
+    // Without its style (offline, the basemap host down) the map is a blank plate: say so
+    // instead of inviting them to pan nothing. Tile errors after the style loaded are
+    // left alone (MapLibre retries them as the map moves).
+    let styled = false
+    map.once('load', () => {
+      styled = true
+    })
+    map.on('error', () => {
+      if (styled || map.isStyleLoaded()) return
+      styled = true // report once
+      setFailed(true)
+      latest.current.onFail?.()
+    })
     map.on('movestart', () => setMoving(true))
     map.on('moveend', (e: { originalEvent?: unknown }) => {
       setMoving(false)
@@ -64,6 +82,11 @@ export default function MiniMap({ box, initial, focus, label, onMove }: MiniMapP
     <div data-slot="mini-map" className="relative h-72 w-full overflow-hidden sm:h-80">
       {/* h-full, not absolute inset-0: MapLibre's CSS sets position: relative on its container. */}
       <div ref={container} className="h-full w-full" />
+      {failed && (
+        <p data-slot="map-fallback" role="status" className="absolute inset-0 z-[3] flex items-center justify-center bg-sunken px-6 text-center text-fg/75">
+          {failedText}
+        </p>
+      )}
       {/* The pin: a C9 bulb whose tip marks the map center. */}
       <div data-slot="map-pin" data-moving={moving || undefined} aria-hidden="true">
         <svg width="34" height="40" viewBox="3 1 18 21.5">

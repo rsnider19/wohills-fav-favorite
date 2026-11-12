@@ -19,7 +19,7 @@ interface Props {
   address: string
   point: LatLng | null
   source: PointSource | null
-  /** Where the map starts when editing. */
+  /** Where the map starts: the current pin, or the neighborhood overview when null. */
   initial: LatLng | null
   onAddress: (address: string) => void
   onPoint: (point: LatLng, source: PointSource) => void
@@ -41,6 +41,8 @@ export function PlaceStep({ box, address, point, source, initial, onAddress, onP
   const [zoom, setZoom] = useState(initial ? ZOOM.house : ZOOM.overview)
   const [showAddressError, setShowAddressError] = useState(false)
   const [needPin, setNeedPin] = useState(false)
+  // The map couldn't load (its chunk or its basemap): no "zoom in" or "drag" advice then.
+  const [mapDown, setMapDown] = useState(false)
 
   const problem = addressProblem(address)
   const inside = point ? inBox(point, box) : null
@@ -95,18 +97,21 @@ export function PlaceStep({ box, address, point, source, initial, onAddress, onP
     onNext()
   }
 
+  const zoomedOut = !mapDown && zoom < ZOOM.precise
   const hint = !point
     ? ENTER.pinHint.none
     : !inside
       ? ENTER.pinHint.outside
-      : zoom < ZOOM.precise
+      : zoomedOut
         ? ENTER.pinHint.zoom
-        : ENTER.pinHint.inside
-  const hintTone = !point ? (needPin ? 'error' : 'info') : !inside ? 'error' : zoom < ZOOM.precise ? 'info' : 'ok'
+        : mapDown
+          ? ENTER.pinHint.insideNoMap
+          : ENTER.pinHint.inside
+  const hintTone = !point ? (needPin ? 'error' : 'info') : !inside ? 'error' : zoomedOut ? 'info' : 'ok'
 
   return (
     <div className="space-y-6">
-      <h2 data-slot="step-title">{ENTER.placeTitle}</h2>
+      <h2 data-slot="step-title" tabIndex={-1}>{ENTER.placeTitle}</h2>
 
       <div>
         <label htmlFor={addressId} data-slot="field-label">
@@ -162,6 +167,7 @@ export function PlaceStep({ box, address, point, source, initial, onAddress, onP
 
       <div data-slot="map-frame">
         <ErrorBoundary
+          onError={() => setMapDown(true)}
           fallback={
             <div data-slot="map-fallback" className="flex h-72 items-center justify-center bg-sunken px-6 text-center sm:h-80">
               <p className="text-fg/75">{ENTER.mapFailed}</p>
@@ -180,6 +186,8 @@ export function PlaceStep({ box, address, point, source, initial, onAddress, onP
               initial={initial}
               focus={focus}
               label={ENTER.mapLabel}
+              failedText={ENTER.mapFailed}
+              onFail={() => setMapDown(true)}
               onMove={(center, z, byUser) => {
                 setZoom(z)
                 if (byUser || point) {

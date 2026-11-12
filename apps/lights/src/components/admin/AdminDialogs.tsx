@@ -1,8 +1,8 @@
 import { useEffect, useId, useState, type FormEvent } from 'react'
-import { prepareImageForUpload } from '@wohills/core'
 import { Dialog, PhotoPicker } from '@wohills/ui'
 import { ADMIN, ENTER } from '../../copy'
 import { ADDRESS_MAX, ADDRESS_MIN, TITLE_MAX, tidy, titleValue } from '../../lib/entry'
+import { photoErrorKind, preparePhoto } from '../../lib/photo'
 import type { AdminEdit } from '../../lib/entries'
 import type { PreparedPhoto } from '../../lib/submit'
 import type { EntryRow } from '../../types'
@@ -18,6 +18,8 @@ export function AdminEditDialog({ row, onSave, onClose }: { row: EntryRow; onSav
   const [lng, setLng] = useState(String(row.lng))
   const [photo, setPhoto] = useState<(PreparedPhoto & { previewUrl: string }) | null>(null)
   const [busy, setBusy] = useState(false)
+  // A replacement photo is being prepared: Save waits for it, or it would save without it.
+  const [developing, setDeveloping] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -27,18 +29,22 @@ export function AdminEditDialog({ row, onSave, onClose }: { row: EntryRow; onSav
 
   async function pick(file: File) {
     setError(null)
+    setDeveloping(true)
     try {
-      const prepared = await prepareImageForUpload(file)
+      const prepared = await preparePhoto(file)
       setPhoto({ ...prepared, previewUrl: URL.createObjectURL(prepared.blob) })
-    } catch {
-      setError(ENTER.photoErrors.other)
+    } catch (err) {
+      setError(ENTER.photoErrors[photoErrorKind(err)])
+    } finally {
+      setDeveloping(false)
     }
   }
 
   async function submit(e: FormEvent) {
     e.preventDefault()
     const a = tidy(address)
-    const point = { lat: Number(lat), lng: Number(lng) }
+    // Number('') is 0: an emptied field must not move the pin to 0,0.
+    const point = { lat: lat.trim() ? Number(lat) : NaN, lng: lng.trim() ? Number(lng) : NaN }
     if (a.length < ADDRESS_MIN || a.length > ADDRESS_MAX) return setError(ADMIN.addressInvalid)
     if (tidy(title).length > TITLE_MAX) return setError(ENTER.titleTooLong(TITLE_MAX))
     if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng) || Math.abs(point.lat) > 90 || Math.abs(point.lng) > 180)
@@ -86,7 +92,7 @@ export function AdminEditDialog({ row, onSave, onClose }: { row: EntryRow; onSav
         <div className="flex flex-wrap items-center gap-4">
           <img src={photo?.previewUrl ?? row.photo_url} alt="" className="h-20 w-28 flex-none bg-sunken object-cover" />
           <div className="space-y-2">
-            <PhotoPicker onFile={pick} disabled={busy} className="btn-ghost">
+            <PhotoPicker onFile={pick} disabled={busy} busy={developing} busyLabel={ENTER.developing} className="btn-ghost">
               {ADMIN.replacePhoto}
             </PhotoPicker>
             {photo && <p className="text-sm text-fg/75">{ADMIN.photoReady}</p>}
@@ -98,7 +104,7 @@ export function AdminEditDialog({ row, onSave, onClose }: { row: EntryRow; onSav
           </Note>
         )}
         <div className="flex flex-wrap gap-3 pt-2">
-          <button type="submit" className="btn-bulb" disabled={busy}>
+          <button type="submit" className="btn-bulb" disabled={busy || developing}>
             {ADMIN.save}
           </button>
           <button type="button" className="btn-ghost" disabled={busy} onClick={onClose}>
