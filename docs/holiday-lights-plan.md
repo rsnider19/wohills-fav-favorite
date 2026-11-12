@@ -324,19 +324,25 @@ is the best address signal we have**:
 attribution), lazy-loaded so the gallery stays fast. Markers are HTML elements styled
 as glowing bulbs, so they theme with CSS like everything else. Tapping a marker opens a
 bottom sheet: photo, address, navigate, vote. M5's pin-confirm map already uses MapLibre and
-CARTO Dark Matter through `apps/lights/src/map/`, which M6 extends (M5 D7/D8).
+CARTO Dark Matter through `apps/lights/src/map/`, which M6 extends (M5 D7/D8). M6 settled the
+rest: a Lineup / Map switch kept in the URL (`/?view=map&house=<n>`), the view fitted to the
+approved houses, bulbs as focusable HTML buttons (no clustering at this size), a bottom sheet
+on phones and a side panel on desktop, a "find my location" button, and one MapLibre chunk
+shared by both maps (`docs/milestones/M6.md`).
 
 ### Navigate button
 
 `core/directions.ts`:
 
-- iOS/iPadOS → `https://maps.apple.com/?daddr=<lat>,<lng>&q=<address>`
+- iOS/iPadOS 18.4+ → `https://maps.apple.com/directions?destination=<lat>,<lng>` (Apple's
+  unified Maps URLs); older iOS → `https://maps.apple.com/?daddr=<lat>,<lng>`
 - everything else → `https://www.google.com/maps/dir/?api=1&destination=<lat>,<lng>`
   (opens the Google Maps app on Android, the website on desktop)
 
 It routes by coordinates, which is more reliable than address strings in a new
-subdivision, and labels with the address. Optional later: a small chooser
-(Apple / Google / Waze).
+subdivision. The address labels the button (its accessible name): neither app's directions
+URL can label a coordinate destination, so the maps app shows the spot's own street address
+(M6 D12). Optional later: a small chooser (Apple / Google / Waze).
 
 ### Schema sketch (`lights` schema in the shared project)
 
@@ -501,10 +507,12 @@ Today is Nov 12. The contest dates set three hard gates:
   (geolocation), so it runs on H's preview URL (M5 "Notes", M8).
 
 ### M6: Map + navigation
+- Spec: [`docs/milestones/M6.md`](milestones/M6.md).
 - Lazy-loaded MapLibre dark map, bulb markers, entry bottom sheet, gallery ⇄ map toggle.
 - `core/directions` navigate button on cards and the sheet.
 - **Done when:** the navigate button opens Apple Maps on iOS and Google Maps on Android
-  to the right house.
+  to the right house. Locally the links and the platform detection are proven by unit and
+  Playwright tests; the on-device check runs on H's HTTPS preview (M6 "Notes for M8").
 
 ### M7: Voting + reveal
 - Voting on cards and the map sheet (shared hooks/`VoteButton`), window countdowns.
