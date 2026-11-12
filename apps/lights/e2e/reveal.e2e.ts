@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { PHONE, card, checkGuards, contestAdmin, hoursFromNow, pollNow, resetLights, seedHouseId, setSettings, signInApi, signInAs, stubNetwork } from './helpers'
+import { PHONE, card, checkGuards, contestAdmin, hoursFromNow, pollNow, resetLights, seedHouseId, service, setSettings, signInApi, signInAs, stubNetwork } from './helpers'
 import { flashProbe } from './flash'
 
 // M7: the reveal. The seed's counts are No. 1: 7, No. 2: 5, No. 4: 4, No. 3: 2, No. 5: 1
@@ -17,12 +17,22 @@ const toWinners = (page: Page) => page.locator('#winners').evaluate((el) => el.s
 
 test('the reveal flips with contest-admin while the page is open, and the power surge plays once', async ({ page }) => {
   await stubNetwork(page)
+  const asked: string[] = []
+  page.on('request', (r) => r.url().includes('/rpc/get_results') && asked.push(r.url()))
   await page.goto('/')
   await expect(page.locator('[data-slot="scoreboard"]')).toHaveText('Votes are in')
   await expect(card(page, 2).locator('[data-slot="vote-button"]')).toHaveText('Voting closed')
   await expect(podium(page)).toHaveCount(0)
+  // Before the reveal the page never asks for results, and the API answers nobody: not a
+  // visitor, not a voter (the admin is checked in the preview test).
+  expect(asked).toEqual([])
+  const { client: voter } = await signInApi(PHONE.fresh)
+  expect((await voter.rpc('get_results')).data).toEqual([])
+  expect((await voter.from('votes').select('house_id')).data).toEqual([]) // only their own vote, and they have none
 
   const out = contestAdmin({ RESULTS_VISIBLE: 'true' })
+  // The same call answers once revealed (so the empty answer above was the gate, not a fault).
+  expect(((await voter.rpc('get_results')).data as unknown[]).length).toBe(3)
   expect(out).toContain('results      VISIBLE (revealed)')
   await pollNow(page) // a phone coming back to the tab; otherwise the 30 s poll
   await expect(page.locator('[data-slot="toast"]')).toHaveText('The winners are in! ★')
@@ -38,6 +48,7 @@ test('the reveal flips with contest-admin while the page is open, and the power 
   await expect(podium(page)).not.toHaveAttribute('data-reveal', /.*/, { timeout: 9_000 })
   await expect(page.locator('[data-slot="blackout"]')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Replay the reveal' })).toBeVisible()
+  await checkGuards(page, 'podium after the surge (with Replay)')
 
   // Rank, number, name, address, votes and directions, in rank order.
   await expect(slot(page, 1)).toContainText('1st place')
@@ -129,6 +140,39 @@ test('ties show "Tied" and the rule; the earlier entry ranks first', async ({ pa
   }
   await expect(slot(page, 3).locator('[data-slot="podium-chip"]')).toHaveCount(0)
   await expect(page.locator('[data-slot="podium-rule"]')).toHaveText('Ranked by votes. Ties go to the house that entered first.')
+})
+
+test('the podium never claims "no winners" by mistake: a failed count keeps counting; two places; no votes at all', async ({ page }) => {
+  // Only No. 3 (2 votes) and No. 5 (1 vote) stay approved: a podium of two.
+  await service().from('houses').update({ status: 'hidden' }).in('id', [1, 2, 4].map(seedHouseId))
+  await setSettings({ results_visible: true })
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await stubNetwork(page)
+  // The first count fails (a phone's connection dropping on reveal night).
+  let failures = 1
+  await page.route('**/rest/v1/rpc/get_results*', (route) => (failures-- > 0 ? route.abort() : route.continue()))
+  await page.goto('/')
+  await expect(page.locator('[data-slot="podium-wait"]')).toHaveText('Counting the votes…')
+  await page.waitForTimeout(500)
+  await expect(page.getByText('No votes were cast')).toHaveCount(0)
+  await pollNow(page)
+  await expect(page.locator('[data-slot="podium-list"]')).toHaveAttribute('data-count', '2')
+  await expect(page.locator('[data-slot="podium-slot"]')).toHaveCount(2)
+  await expect(slot(page, 1).getByRole('heading')).toHaveText('920 Clubview Blvd S')
+  await expect(slot(page, 2).locator('[data-slot="podium-votes"]')).toHaveText('1vote')
+  await expect(page.locator('[data-slot="podium-rule"]')).toBeVisible()
+  await checkGuards(page, 'a podium of two')
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await checkGuards(page, 'a podium of two (desktop)')
+
+  // Only houses nobody voted for: no winners, said plainly (get_results still answers with
+  // their 0-vote rows; a 0-vote house is not a winner).
+  await service().from('houses').update({ status: 'hidden' }).in('id', [3, 5].map(seedHouseId))
+  await service().from('houses').update({ status: 'approved' }).in('id', [6, 7].map(seedHouseId))
+  await pollNow(page)
+  await expect(page.locator('[data-slot="podium-wait"]')).toHaveText('No votes were cast, so there are no winners this year.')
+  await expect(page.locator('[data-slot="podium-list"]')).toHaveCount(0)
+  await expect(page.locator('[data-slot="podium-rule"]')).toHaveCount(0)
 })
 
 test("the admin's ?preview=results shows a sample podium and never a real count", async ({ page, context }) => {

@@ -491,6 +491,8 @@ export const VOTE = {
   /** Why a vote didn't go in (lib/ballot.ts voteProblem). */
   problems: {
     closed: "Voting just closed, so your vote didn't go in.",
+    paused: "Voting is paused for a moment, so your vote didn't go in. Try again soon.",
+    'not-yet': "Voting hasn't opened yet, so your vote didn't go in.",
     gone: "That house was just taken off the board, so your vote didn't go in. Pick another one.",
     own: "That's your own house, so it can't get your vote. Pick another one!",
     network: "Your vote didn't go in: the connection dropped. Check it and try again.",

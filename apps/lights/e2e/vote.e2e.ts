@@ -50,7 +50,7 @@ test('sign in to vote → the vote goes in after the code → switch it → a re
   await expect(page.locator('[data-slot="house-card"][data-state="lit"]')).toHaveCount(1)
 })
 
-test('while a vote is saved every button waits; the card lights only once the database said yes', async ({ page, context }) => {
+test('while a vote is saved every button waits; the card lights only once the database said yes; keyboard focus stays put', async ({ page, context }) => {
   await signInAs(context, PHONE.fresh)
   await stubNetwork(page)
   let release: () => void = () => {}
@@ -60,7 +60,9 @@ test('while a vote is saved every button waits; the card lights only once the da
     await route.continue()
   })
   await page.goto('/')
-  await ballot(page, 3).click()
+  // From the keyboard: the button is disabled while it saves, which drops focus to <body>.
+  await ballot(page, 3).focus()
+  await page.keyboard.press('Enter')
   await expect(ballot(page, 3)).toHaveText('Saving…')
   await expect(ballot(page, 3)).toBeDisabled()
   await expect(ballot(page, 5)).toBeDisabled()
@@ -68,6 +70,9 @@ test('while a vote is saved every button waits; the card lights only once the da
   release()
   await expect(card(page, 3)).toHaveAttribute('data-state', 'lit')
   await expect(ballot(page, 5)).toBeEnabled()
+  // Focus is back on the button the voter pressed, not at the top of the page.
+  await expect(ballot(page, 3)).toBeFocused()
+  await expect(ballot(page, 3)).toHaveText('★ Your pick')
 })
 
 test('your own house says "Your house" and can never get your vote, not even through the sign-in', async ({ page }) => {
@@ -161,7 +166,7 @@ test('a pick the admin hides: no lit card, a notice, and the next vote counts', 
   expect(await voteOf(PHONE.fresh)).toBe(2)
 })
 
-test('each refusal gets its own words: house taken off the board, voting closed, connection lost', async ({ page, context }) => {
+test('each refusal gets its own words: house taken off the board, voting paused, voting closed, connection lost', async ({ page, context }) => {
   await signInAs(context, PHONE.fresh)
   await stubNetwork(page)
   await page.goto('/')
@@ -173,11 +178,23 @@ test('each refusal gets its own words: house taken off the board, voting closed,
   await expect(toast(page)).toHaveText("That house was just taken off the board, so your vote didn't go in. Pick another one.")
   await expect(card(page, 5)).toHaveCount(0) // the refusal refreshed the lineup
 
-  // Closed after the page loaded (the clock still says open).
+  // Paused after the page loaded: not "closed", since voting comes back.
   await setSettings({ voting_open: false })
   await ballot(page, 3).click()
-  await expect(toast(page)).toHaveText("Voting just closed, so your vote didn't go in.")
+  await expect(toast(page)).toHaveText("Voting is paused for a moment, so your vote didn't go in. Try again soon.")
+  await expect(ballot(page, 3)).toHaveText('Voting paused') // the refusal refreshed the settings
+  // Reopen with a reload: a poll would flip the phase back to "voting", and the refetch that
+  // flip starts could read the close below before the click.
   await setSettings({ voting_open: true })
+  await page.reload()
+  await expect(ballot(page, 3)).toHaveText('Vote for this house')
+
+  // Closed after the page loaded (the page hasn't polled, so it still says open).
+  await setSettings({ voting_closes_at: hoursFromNow(-0.01) })
+  await ballot(page, 3).click()
+  await expect(toast(page)).toHaveText("Voting just closed, so your vote didn't go in.")
+  await expect(ballot(page, 3)).toHaveText('Voting closed')
+  await setSettings(VOTING)
   await pollNow(page)
   await expect(ballot(page, 3)).toHaveText('Vote for this house')
 
@@ -186,6 +203,20 @@ test('each refusal gets its own words: house taken off the board, voting closed,
   await ballot(page, 3).click()
   await expect(toast(page)).toHaveText("Your vote didn't go in: the connection dropped. Check it and try again.")
   await expect(card(page, 3)).not.toHaveAttribute('data-state', 'lit')
+  expect(await voteOf(PHONE.fresh)).toBeNull()
+})
+
+test("before the window the database refuses even a previewed vote, and the toast says it hasn't opened", async ({ page, context }) => {
+  await resetLights() // voting opens in a week
+  await signInAs(context, PHONE.fresh)
+  await stubNetwork(page)
+  // ?preview=voting shows the live look (any visitor in dev, the admin on a real build); the
+  // database still enforces the real window.
+  await page.goto('/?preview=voting')
+  await expect(ballot(page, 2)).toHaveText('Vote for this house')
+  await ballot(page, 2).click()
+  await expect(toast(page)).toHaveText("Voting hasn't opened yet, so your vote didn't go in.")
+  await expect(card(page, 2)).not.toHaveAttribute('data-state', 'lit')
   expect(await voteOf(PHONE.fresh)).toBeNull()
 })
 

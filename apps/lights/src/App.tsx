@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
+  CONTEST_SETTINGS_COLUMNS,
+  type ContestSettings,
   useContestSettings,
   useIsAdmin,
   useMyVote,
   useNow,
-  useResults,
   useSecretTaps,
   useSession,
   useSupabase,
@@ -40,8 +41,9 @@ import { ViewToggle } from './components/ViewToggle'
 import { Ballot } from './components/Ballot'
 import { Podium } from './components/Podium'
 import { Note } from './components/Page'
-import { ballotState, countedPick, isNetworkError, pickWasHidden, voteProblem, type VoteFacts } from './lib/ballot'
-import { podiumRows, samplePodium, type LightsResult } from './lib/reveal'
+import { ballotState, countedPick, isNetworkError, pickWasHidden, voteProblem, windowShut, type VoteFacts } from './lib/ballot'
+import { podiumRows, samplePodium } from './lib/reveal'
+import { useLightsResults } from './lib/results'
 
 const toDate = (iso: string | null) => (iso ? new Date(iso) : null)
 
@@ -97,24 +99,40 @@ export default function App() {
   const { myVote, vote } = useMyVote(session, { column: 'house_id', paused: pendingVote !== null })
   // Real results only once the database has revealed them; get_results() returns nothing
   // before that, even for the admin (M3 lights_30). The admin's ?preview=results shows a
-  // sample podium instead, with no counts (lib/reveal.ts).
-  const { results, loading: resultsLoading } = useResults<LightsResult>(liveSettings.results_visible, { fn: 'get_results' })
+  // sample podium instead, with no counts (lib/reveal.ts). A failed call keeps "loading"
+  // (lib/results.ts), so it never reads as "no votes were cast".
+  const { results, loading: resultsLoading } = useLightsResults(liveSettings.results_visible)
   const sample = previewing && preview === 'results' && !liveSettings.results_visible
 
   // Callbacks handed to the memoized cards read the latest values from here, so they
   // stay the same function between renders.
-  const latest = useRef({ session, myVote, votingOpen: status.votingOpen })
+  const latest = useRef({ session, myVote, votingOpen: status.votingOpen, settings, now })
   useEffect(() => {
-    latest.current = { session, myVote, votingOpen: status.votingOpen }
+    latest.current = { session, myVote, votingOpen: status.votingOpen, settings, now }
   })
 
+  // One vote action at a time (D6). The buttons are disabled while one saves, but a ref
+  // also covers what a re-render can't: a second tap in the same frame, and a vote picked
+  // before the sign-in landing (it reads the account's vote first) while the visitor taps
+  // another house. `savingId` keeps that house's button on "Saving…" until it's all done.
+  const busy = useRef(false)
+  const exclusive = useCallback(async (houseId: string, work: () => Promise<void>) => {
+    if (busy.current) return
+    busy.current = true
+    setSavingId(houseId)
+    try {
+      await work()
+    } finally {
+      busy.current = false
+      setSavingId(null)
+    }
+  }, [])
+
   /** Cast or change the vote, wait for the database (no optimistic pick: a lit card must
-   *  mean a counted vote), then say what happened. */
+   *  mean a counted vote), then say what happened. Run inside `exclusive`. */
   const submitVote = useCallback(
     async (house: House, previous: string | null) => {
-      setSavingId(house.id)
       const { error } = await vote(house.id)
-      setSavingId(null)
       const name = houseName(house)
       if (!error) {
         flash(previous !== null && previous !== house.id ? VOTE.toasts.changed(name) : VOTE.toasts.cast(name))
@@ -123,12 +141,14 @@ export default function App() {
       // RLS refuses with one code for every reason (M3 D26): ask what changed.
       let facts: VoteFacts | null = null
       if (!isNetworkError(error)) {
-        const [open, row] = await Promise.all([
+        const [open, row, windowRow] = await Promise.all([
           supabase.rpc('voting_is_open'),
           supabase.from('houses').select('id').eq('id', house.id).eq('status', 'approved').maybeSingle(),
+          supabase.from('settings').select(CONTEST_SETTINGS_COLUMNS).single<ContestSettings>(),
         ])
         facts = {
           votingOpen: open.error ? null : open.data === true,
+          shut: windowRow.data ? windowShut(windowRow.data, new Date()) : null,
           approved: row.error ? null : row.data !== null,
           own: house.submitted_by === latest.current.session?.user.id,
         }
@@ -142,27 +162,33 @@ export default function App() {
 
   // Apply the vote that opened the sign-in, once the session arrives. The account may turn
   // out to own that house, or to have voted for it already, so check before writing.
+  // `exclusive` also keeps a re-run of this effect (a new session object from a token
+  // refresh mid-flight) from applying the same vote twice.
   useEffect(() => {
     if (!session || !pendingVote) return
     const house = pendingVote
     const own = house.submitted_by === session.user.id
-    ;(async () => {
-      if (own) flash(VOTE.problems.own)
-      else if (!latest.current.votingOpen) flash(VOTE.problems.closed)
-      else {
-        const { data } = await supabase.from('votes').select('house_id').maybeSingle<{ house_id: string }>()
-        const previous = data?.house_id ?? null
-        if (previous === house.id) flash(VOTE.toasts.already(houseName(house)))
-        else await submitVote(house, previous)
+    void exclusive(house.id, async () => {
+      try {
+        const { votingOpen, settings, now } = latest.current
+        if (own) flash(VOTE.problems.own)
+        else if (!votingOpen) flash(VOTE.problems[windowShut(settings, now)])
+        else {
+          const { data } = await supabase.from('votes').select('house_id').maybeSingle<{ house_id: string }>()
+          const previous = data?.house_id ?? null
+          if (previous === house.id) flash(VOTE.toasts.already(houseName(house)))
+          else await submitVote(house, previous)
+        }
+      } finally {
+        setPendingVote(null)
       }
-      setPendingVote(null)
-    })()
-  }, [session, pendingVote, submitVote, supabase, flash])
+    })
+  }, [session, pendingVote, exclusive, submitVote, supabase, flash])
 
   const castVote = useCallback(
     (house: House) => {
       const { session, myVote, votingOpen } = latest.current
-      if (!votingOpen) return
+      if (!votingOpen || busy.current) return
       if (!session) {
         setPendingVote(house)
         setAuth({ notice: VOTE.authNotice(houseName(house)) })
@@ -172,9 +198,9 @@ export default function App() {
         flash(VOTE.toasts.already(houseName(house)))
         return
       }
-      submitVote(house, myVote)
+      void exclusive(house.id, () => submitVote(house, myVote))
     },
-    [flash, submitVote],
+    [flash, exclusive, submitVote],
   )
 
   // Re-fetch the moment the phase flips (a window boundary passed) instead of waiting

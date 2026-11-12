@@ -1,3 +1,4 @@
+import { votingWindow, type ContestSettings } from '@wohills/core'
 import type { Phase } from './phase'
 import type { House } from '../types'
 
@@ -59,13 +60,28 @@ export function pickWasHidden(myVote: string | null, houses: Pick<House, 'id'>[]
   return myVote !== null && houses !== undefined && countedPick(myVote, houses) === null
 }
 
+/** Why voting isn't open (for a vote that couldn't go in). */
+export type WindowShut = 'paused' | 'not-yet' | 'closed'
+
+/** Pure: why voting is shut at `now`, from the window and the kill switch. Called only
+ *  once the database (or the page) said voting isn't open; if this clock still reads
+ *  "open" it is skewed against the database's, which means a window edge: "closed". */
+export function windowShut(settings: ContestSettings, now: Date): WindowShut {
+  const w = votingWindow(settings, now)
+  if (w.afterClose) return 'closed'
+  if (w.beforeOpen) return 'not-yet'
+  return settings.voting_open ? 'closed' : 'paused'
+}
+
 /** Why a vote didn't go in, for the toast. RLS answers every refusal with the same 42501
  *  (M3 D26), so the app asks the database what changed (`facts`) before choosing the copy. */
-export type VoteProblem = 'closed' | 'gone' | 'own' | 'network' | 'unknown'
+export type VoteProblem = WindowShut | 'gone' | 'own' | 'network' | 'unknown'
 
 export interface VoteFacts {
   /** lights.voting_is_open() right after the refusal (null if that check failed too). */
   votingOpen: boolean | null
+  /** Why it's shut, from the settings read right after the refusal (null if unknown). */
+  shut: WindowShut | null
   /** The house is still approved (null if unknown). */
   approved: boolean | null
   /** The house belongs to the voter. */
@@ -93,7 +109,7 @@ export function voteProblem(error: unknown, facts: VoteFacts | null): VoteProble
   const rejected = e.code === '42501' || (typeof e.message === 'string' && /row-level security/i.test(e.message))
   if (!rejected || !facts) return 'unknown'
   if (facts.own) return 'own'
-  if (facts.votingOpen === false) return 'closed'
+  if (facts.votingOpen === false) return facts.shut ?? 'closed'
   if (facts.approved === false) return 'gone'
   return 'unknown'
 }
