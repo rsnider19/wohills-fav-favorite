@@ -36,6 +36,9 @@ export interface ContestStatus {
   /** Mirrors lights.owner_edits_allowed(): submissions open and voting not started. */
   ownerCanEdit: boolean
   votingOpen: boolean
+  /** Inside the voting window with the kill switch off (phase "closed"): the admin paused
+   *  voting for a moment. The copy says "paused", not "the votes are in" (M7). */
+  votingPaused: boolean
   /** What the hero counts down to, if anything. */
   countdown: { kind: CountdownKind; target: Date } | null
 }
@@ -68,7 +71,9 @@ export function contestStatus(settings: LightsSettings, now: Date): ContestStatu
     countdown = { kind: 'voting-closes', target: vw.closesAt }
   }
 
-  return { phase, submissionsOpen, ownerCanEdit, votingOpen: vw.votingOpen, countdown }
+  const votingPaused = phase === 'closed' && !vw.afterClose
+
+  return { phase, submissionsOpen, ownerCanEdit, votingOpen: vw.votingOpen, votingPaused, countdown }
 }
 
 /** `a` before `b` (or equal, with `orEqual`); an open-ended bound is always in order. */

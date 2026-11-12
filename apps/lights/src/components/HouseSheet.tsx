@@ -8,7 +8,9 @@ interface Props {
   /** The heading takes focus when a house is picked with the keyboard. */
   headingRef: Ref<HTMLHeadingElement>
   onClose: () => void
-  /** Next to "Directions" (M7: the vote button, or "Your house"). */
+  /** Before "Directions" (M7: the vote button, or "Your house"). With it, Directions
+   *  shrinks to the round icon: two wide buttons don't fit a 390px sheet, and the vote is
+   *  the primary action. */
   actions?: ReactNode
 }
 
@@ -48,8 +50,8 @@ export function HouseSheet({ house, headingRef, onClose, actions }: Props) {
           </p>
         )}
         <div data-slot="sheet-actions">
-          <NavigateButton house={house} variant="bulb" />
           {actions}
+          <NavigateButton house={house} variant={actions ? 'icon' : 'bulb'} />
         </div>
       </div>
       <button type="button" data-slot="sheet-close" aria-label={MAP.close} title={MAP.close} onClick={onClose}>

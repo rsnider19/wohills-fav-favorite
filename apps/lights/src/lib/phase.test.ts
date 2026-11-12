@@ -31,6 +31,14 @@ describe('contestStatus', () => {
     expect(contestStatus(s({ voting_open: false }), new Date('2026-12-10T12:00:00Z')).phase).toBe('closed')
   })
 
+  it('tells a pause (kill switch inside the window) from the close', () => {
+    expect(contestStatus(s({ voting_open: false }), new Date('2026-12-10T12:00:00Z')).votingPaused).toBe(true)
+    expect(contestStatus(base, new Date('2026-12-22T12:00:00Z')).votingPaused).toBe(false)
+    expect(contestStatus(s({ voting_open: false }), new Date('2026-12-22T12:00:00Z')).votingPaused).toBe(false)
+    expect(contestStatus(base, new Date('2026-12-10T12:00:00Z')).votingPaused).toBe(false)
+    expect(contestStatus(s({ voting_open: false, results_visible: true }), new Date('2026-12-10T12:00:00Z')).votingPaused).toBe(false)
+  })
+
   it('is "results" whenever results are visible', () => {
     expect(contestStatus(s({ results_visible: true }), NOW)).toMatchObject({ phase: 'results', countdown: null })
   })

@@ -191,6 +191,19 @@ opens it on that house. Every house has a directions button: Apple Maps on iPhon
 Google Maps everywhere else, routed to the house's coordinates. The map loads only when
 someone opens it, from the same MapLibre chunk as the pin map.
 
+**Voting** (inside the voting window) is on every card and in the map's house sheet: "Sign
+in to vote" (the vote goes in right after the code), "Vote for this house", "Switch my vote
+here", "★ Your pick" (that card goes fully lit), "Your house" on your own entry (self-votes
+are blocked), and "Voting opens …", "Voting paused" or "Voting closed" outside it. One vote
+per phone, changeable until the close; the database enforces all of it (RLS).
+
+**The reveal**: `RESULTS_VISIBLE=true npm run contest-admin -- --contest lights` (or `false`
+to hide it again). Open pages pick it up on their next poll (30 s, or at once when a phone
+comes back to the tab), and the top 3 appear in the hero with the "power surge": the page
+dims and 3rd, 2nd and 1st come on one at a time (once per browser; Skip and "Replay the
+reveal" buttons; reduced motion and the pause switch show the lit podium at once). Before
+the real reveal, the admin's `?preview=results` shows a sample podium with no counts.
+
 Other entrances: `/?signin` (or five quick taps on "Worthington Hills ★ 2026" in the hero)
 opens the phone sign-in before anything is open, e.g. for the admin. The bulb button in the
 header pauses every animation (remembered per device); visitors with "reduce motion" turned
@@ -205,7 +218,11 @@ set -a; eval "$(npx --yes supabase@3.1.0 status -o env)"; set +a   # API_URL, AN
 npm run e2e:lights                                  # starts its own dev server on :5175
 SHOOT=1 npm run e2e:lights -- screenshots.e2e       # the M5 screenshots
 SHOOT=1 npm run e2e:lights -- screenshots-m6        # the M6 screenshots (map, sheet, lineup)
+SHOOT=1 npm run e2e:lights -- screenshots-m7        # the M7 screenshots (voting, the reveal)
 ```
+
+`reveal.e2e.ts` includes the WCAG 2.3.1 flash probe on the reveal (about two minutes; it steps
+every animation through the 7-second surge and counts flashes).
 
 The tests stub the address lookup (`geocode` function) in the browser, because the local
 edge runtime can't reach the Census geocoder from a sandbox (M3 D19).
@@ -281,9 +298,11 @@ apps/lights/                         the holiday lights site (Vite app; local on
                                      entry writes (upload, then insert), my entry, moderation
   src/lib/view.ts  src/lib/navigate.ts
                                      ?view=map / ?house= and the directions link (tested)
+  src/lib/ballot.ts  src/lib/reveal.ts
+                                     vote-button states and errors; the podium and the reveal (tested)
   src/map/                           MapLibre setup, the pin map and the browse map (one lazy chunk)
   src/components/                    Header, Hero, LightString, Gallery, HouseCard, Footer, Page,
-                                     MapView, HouseSheet, NavigateButton, ViewToggle
+                                     MapView, HouseSheet, NavigateButton, ViewToggle, Ballot, Podium
   src/components/entry/              /enter: the three-step form and "My entry"
   src/components/admin/              /admin: the moderation queue
   e2e/  playwright.config.ts         Playwright end-to-end tests (local stack only)

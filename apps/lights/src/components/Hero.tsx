@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { cn, Countdown } from '@wohills/ui'
 import type { ContestStatus } from '../lib/phase'
-import { COUNTDOWN_LABEL, COUNTDOWN_UNITS, HERO_CTA, HERO_EYEBROW, SCOREBOARD, SR_TITLE } from '../copy'
+import { COUNTDOWN_LABEL, COUNTDOWN_UNITS, HERO_CTA, HERO_CTA_WINNERS, HERO_EYEBROW, PAUSED, SCOREBOARD, SR_TITLE } from '../copy'
 import { LightString } from './LightString'
 
 // "LIGHTS", one bulb color per letter. The I is the sign's faulty bulb.
@@ -25,7 +25,7 @@ interface Props {
   actions?: ReactNode
   /** Five quick taps on the eyebrow open the hidden sign-in (admin, before anything opens). */
   onSecretTap: () => void
-  /** Rendered under the hero row (M7: the results podium). */
+  /** Rendered under the hero row: the results podium (M7). */
   children?: ReactNode
 }
 
@@ -45,6 +45,9 @@ export function Hero({ status, pending, tagline, now, actions, onSecretTap, chil
   }, [])
 
   const hide = pending ? 'invisible' : undefined
+  // After the reveal the call to action jumps to the podium (M7); paused voting says so.
+  const winners = status.phase === 'results'
+  const board = status.votingPaused ? PAUSED : SCOREBOARD[status.phase]
   return (
     <section ref={ref} data-slot="hero" className="relative">
       <LightString />
@@ -89,8 +92,8 @@ export function Hero({ status, pending, tagline, now, actions, onSecretTap, chil
           </p>
           <div data-slot="hero-actions" className="rise mt-8 flex flex-wrap gap-3">
             {actions}
-            <a href="#houses" className="btn-bulb">
-              {HERO_CTA}
+            <a href={winners ? '#winners' : '#houses'} className="btn-bulb">
+              {winners ? HERO_CTA_WINNERS : HERO_CTA}
               <span aria-hidden="true">↓</span>
             </a>
           </div>
@@ -107,8 +110,8 @@ export function Hero({ status, pending, tagline, now, actions, onSecretTap, chil
           ) : (
             // No window ahead (closed, results): the same scoreboard, holding a message.
             <div data-slot="scoreboard-wrap">
-              <p data-slot="countdown-label">{SCOREBOARD[status.phase].label}</p>
-              <p data-slot="scoreboard">{SCOREBOARD[status.phase].text}</p>
+              <p data-slot="countdown-label">{board.label}</p>
+              <p data-slot="scoreboard">{board.text}</p>
             </div>
           )}
         </div>

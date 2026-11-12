@@ -1,7 +1,10 @@
 // Shared helpers for the lights end-to-end tests. LOCAL STACK ONLY: every test talks to
 // the database as the service role to set up and clean up, so `env()` refuses anything
 // but 127.0.0.1/localhost (same rule as supabase/tests/lights-smoke.mjs).
-import { readFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js'
 import { expect, type BrowserContext, type Page } from '@playwright/test'
 
@@ -49,8 +52,11 @@ const SEED_ROWS = [
 const iso = (msFromNow: number) => new Date(Date.now() + msFromNow).toISOString()
 const DAY = 86_400_000
 
+/** The seed's 30 fake voters (supabase/seed_lights.sql); every other vote is a test's. */
+const SEED_VOTER_PREFIX = '11111111-0000-4000-8000-0000000009'
+
 /** Put the local lights data back the way `supabase db reset` leaves it (entries open,
- *  voting in a week), with 0100 as the admin. Runs before every test. */
+ *  voting in a week, the seed's 21 votes), with 0100 as the admin. Runs before every test. */
 export async function resetLights(overrides: Record<string, unknown> = {}) {
   const db = service()
   const check = (what: string, error: unknown) => {
@@ -72,6 +78,11 @@ export async function resetLights(overrides: Record<string, unknown> = {}) {
   check('settings', r.error)
   r = await db.schema('public').from('admin_config').update({ admin_phone: PHONE.admin }).eq('id', true)
   check('admin_config', r.error)
+  // Votes the tests cast (the seed's 21 stay).
+  const { data: votes, error: votesError } = await db.from('votes').select('user_id')
+  check('votes', votesError)
+  const testVoters = (votes ?? []).map((v) => v.user_id as string).filter((id) => !id.startsWith(SEED_VOTER_PREFIX))
+  if (testVoters.length) check('delete votes', (await db.from('votes').delete().in('user_id', testVoters)).error)
   // Entries the tests created (anything that isn't a seed row), then the seed rows' fields.
   const { data: rows, error } = await db.from('houses').select('id')
   check('houses', error)
@@ -285,3 +296,42 @@ export async function checkGuards(page: Page, screen: string) {
   expect(report.overflow, `${screen}: horizontal overflow`).toBeLessThanOrEqual(0)
   expect(report.small, `${screen}: tap targets under 44px`).toEqual([])
 }
+
+/** The seed's house ids (No. n). */
+export const seedHouseId = (n: number) => SEED_PREFIX + String(n).padStart(12, '0')
+
+/** The lights vote of a test phone, read as the service role (house entry number or null). */
+export async function voteOf(phone: string): Promise<number | null> {
+  const { data: users } = await service().auth.admin.listUsers({ perPage: 1000 })
+  const user = users.users.find((u) => u.phone === phone)
+  if (!user) return null
+  const { data } = await service().from('votes').select('house_id').eq('user_id', user.id).maybeSingle()
+  if (!data) return null
+  const { data: house } = await service().from('houses').select('entry_number').eq('id', data.house_id).single()
+  return (house?.entry_number as number) ?? null
+}
+
+/** Run the real `contest-admin` CLI against the local stack with only these variables (an
+ *  empty env file, so a developer's apps/lights/.env can't apply its windows). */
+export function contestAdmin(vars: Record<string, string>) {
+  const { url, serviceKey } = env()
+  const dir = mkdtempSync(join(tmpdir(), 'lights-e2e-'))
+  const file = join(dir, 'empty.env')
+  writeFileSync(file, '')
+  const root = new URL('../../../', import.meta.url).pathname
+  return execFileSync('node', ['tools/contest-admin.mjs', '--contest', 'lights', '--env-file', file], {
+    cwd: root,
+    env: { PATH: process.env.PATH, SUPABASE_URL: url, SUPABASE_SERVICE_ROLE_KEY: serviceKey, ...vars },
+    encoding: 'utf8',
+  })
+}
+
+/** Make the page poll now (what a phone does when it comes back to the tab): core's
+ *  usePolling refreshes on visibilitychange instead of waiting out its 30 s. */
+export async function pollNow(page: Page) {
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
+}
+
+/** The lineup card of house No. n. */
+export const card = (page: Page, n: number) =>
+  page.locator('[data-slot="house-card"]').filter({ has: page.locator(`[data-slot="house-number"] b:text-is("${n}")`) })

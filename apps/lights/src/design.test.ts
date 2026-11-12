@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { REVEAL } from './lib/reveal'
 
 // Read from disk: vitest replaces imported CSS (even ?raw) with an empty string.
 const read = (file: string) => readFileSync(new URL(file, import.meta.url), 'utf8')
@@ -33,6 +34,8 @@ const SKY_ZENITH = hex('#0f1a45') // brightest point of the sky gradient, behind
 const SCOREBOARD = hex('#070815') // countdown timer fill
 const RAIL = hex('#0b0e20') // ticker and frame rail
 const BUTTON_EDGE = hex('#e89a00') // darkest stop of the gold button gradient
+const PICK_TEXT = hex('#03140a') // text on the green "Your pick" button and ribbon
+const PICK_EDGE = hex('#14c95c') // darkest stop of the green "Your pick" gradient
 
 // [label, text, background, minimum]. 4.5 = WCAG AA body text; 3 = large text (≥ 24px,
 // or ≥ 18.66px bold), which is what the display-font headings and the sign are.
@@ -61,6 +64,15 @@ const PAIRS: [string, RGB, RGB, number][] = [
   ['map hint (fg) on its plate', t('fg'), over(t('bg'), 0.85, hex('#ffffff')), 4.5],
   ['sheet address (fg/75) on the sheet', over(t('fg'), 0.75, over(t('surface'), 0.97, hex('#ffffff'))), over(t('surface'), 0.97, hex('#ffffff')), 4.5],
   ['map panel text (fg/75) on a card', over(t('fg'), 0.75, t('surface')), t('surface'), 4.5],
+  // M7: the vote control, the ribbons and the podium.
+  ['"Your pick" text on the green bulb', PICK_TEXT, t('bulb-green'), 4.5],
+  ['"Your pick" text on the darkest green', PICK_TEXT, PICK_EDGE, 4.5],
+  ['"Your house" gold on its plate', t('primary'), over(t('primary'), 0.08, t('surface')), 4.5],
+  ['"Voting closed" (fg/75) on a card', over(t('fg'), 0.75, t('surface')), t('surface'), 4.5],
+  ['ribbon gold on its dark pill over a photo', t('primary'), over(t('bg'), 0.85, hex('#ffffff')), 4.5],
+  ['podium place: 2nd (warm white) on a card', t('bulb-white'), t('surface'), 4.5],
+  ['podium place: 3rd (red) on a card', t('bulb-red'), t('surface'), 4.5],
+  ['podium vote count (gold) on a card', t('bulb-gold'), t('surface'), 4.5],
   ['sign letter: red', t('bulb-red'), t('bg'), 3],
   ['sign letter: green', t('bulb-green'), t('bg'), 3],
   ['sign letter: gold', t('bulb-gold'), t('bg'), 3],
@@ -99,7 +111,7 @@ describe('lights motion guardrails', () => {
 
   it('finds the effects', () => {
     expect(anims.map((a) => a.decl.split(' ')[0])).toEqual(
-      expect.arrayContaining(['bulb-chase', 'twinkle', 'power-on', 'faulty-bulb', 'snowfall-near', 'warm-up', 'live-pulse', 'bulb-pulse']),
+      expect.arrayContaining(['bulb-chase', 'twinkle', 'power-on', 'faulty-bulb', 'snowfall-near', 'warm-up', 'live-pulse', 'bulb-pulse', 'surge', 'surge-winner', 'blackout']),
     )
   })
 
@@ -115,5 +127,34 @@ describe('lights motion guardrails', () => {
     const kill = /\*,\s*\*::before,\s*\*::after\s*\{\s*animation:\s*none !important;\s*transition:\s*none !important;/
     expect(effectsCss).toMatch(new RegExp(/@media \(prefers-reduced-motion: reduce\)\s*\{\s*/.source + kill.source))
     expect(effectsCss).toMatch(/:root\[data-motion="off"\] \*,\s*:root\[data-motion="off"\] \*::before,\s*:root\[data-motion="off"\] \*::after\s*\{\s*animation: none !important;/)
+  })
+})
+
+describe('the reveal (M7)', () => {
+  const seconds = (name: string) => Number(effectsCss.match(new RegExp(`animation: ${name} (\\d*\\.?\\d+)s`))?.[1])
+  /** The last keyframe stop at which the blackout is still fully dark ("8%, 84%"). */
+  const darkUntil = Number(effectsCss.match(/@keyframes blackout \{[\s\S]*?8%, (\d+)%/)?.[1]) / 100
+
+  it('runs as long as the app waits (REVEAL.total) and never waits for animationend', () => {
+    expect(seconds('blackout') * 1000).toBe(REVEAL.total)
+  })
+
+  it('lights the places 3, 2, 1, one at a time, before the power comes back', () => {
+    const { 1: first, 2: second, 3: third } = REVEAL.surge
+    expect(third).toBeLessThan(second)
+    expect(second).toBeLessThan(first)
+    // Each place has settled before the next starts (no two surges overlap).
+    expect(third + seconds('surge') * 1000).toBeLessThanOrEqual(second)
+    expect(second + seconds('surge') * 1000).toBeLessThanOrEqual(first)
+    // The winner has settled before the page brightens again.
+    expect(first + seconds('surge-winner') * 1000).toBeLessThanOrEqual(darkUntil * REVEAL.total)
+  })
+
+  it('only dims: every keyframe ends lit, so a stopped animation shows the final state', () => {
+    for (const name of ['surge', 'surge-winner']) {
+      const block = effectsCss.match(new RegExp(`@keyframes ${name} \\{([\\s\\S]*?)\\n\\}`))?.[1] ?? ''
+      expect(block, name).toMatch(/100% \{ opacity: 1; \}/)
+    }
+    expect(effectsCss).toMatch(/@keyframes blackout \{[\s\S]*?100% \{ opacity: 0; \}/)
   })
 })

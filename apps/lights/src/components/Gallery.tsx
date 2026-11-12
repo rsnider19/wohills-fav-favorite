@@ -19,6 +19,8 @@ interface Props {
   emptyAction?: ReactNode
   /** Next to the title (M6: the gallery ⇄ map toggle). */
   toolbar?: ReactNode
+  /** Under the title row, in both views (M7: "the house you voted for was taken off the board"). */
+  notice?: ReactNode
   /** Per-card props from later milestones (M6 navigate, M7 vote / lit / badge). Pass a
    *  stable (useCallback) function: the cards only re-render when it or the houses change. */
   renderCard?: (house: House) => Pick<HouseCardProps, 'lit' | 'badge' | 'actions'>
@@ -28,7 +30,7 @@ interface Props {
 }
 
 /** The lineup: every approved house, shuffled per visit (?house=<number> pins one first). */
-export function Gallery({ houses, loading, phase, submissionsOpenAt, onRetry, emptyAction, toolbar, renderCard, view = 'lineup', renderMap }: Props) {
+export function Gallery({ houses, loading, phase, submissionsOpenAt, onRetry, emptyAction, toolbar, notice, renderCard, view = 'lineup', renderMap }: Props) {
   const ordered = useShuffledOrder(houses ?? [], { getId: houseId, getPinKey: houseNumber, pinParam: 'house' })
   const failed = !loading && houses === undefined
   // The app re-renders every second (countdown). Building the cards' extra props here, once
@@ -51,6 +53,7 @@ export function Gallery({ houses, loading, phase, submissionsOpenAt, onRetry, em
         </div>
         {toolbar}
       </div>
+      {notice && <div className="-mt-2 mb-6">{notice}</div>}
 
       {loading ? (
         <div aria-busy="true">
