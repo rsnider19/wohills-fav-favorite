@@ -57,6 +57,10 @@ const PAIRS: [string, RGB, RGB, number][] = [
   ['typed text in a field', t('fg'), t('field'), 4.5],
   ['note text (fg/85) on a card', over(t('fg'), 0.85, t('surface')), t('surface'), 4.5],
   ['map attribution (fg/80) on its dark plate', over(t('fg'), 0.8, over(t('bg'), 0.78, hex('#ffffff'))), over(t('bg'), 0.78, hex('#ffffff')), 4.5],
+  // M6: the map. Plates sit over the map, so they are composited over white (worst case).
+  ['map hint (fg) on its plate', t('fg'), over(t('bg'), 0.85, hex('#ffffff')), 4.5],
+  ['sheet address (fg/75) on the sheet', over(t('fg'), 0.75, over(t('surface'), 0.97, hex('#ffffff'))), over(t('surface'), 0.97, hex('#ffffff')), 4.5],
+  ['map panel text (fg/75) on a card', over(t('fg'), 0.75, t('surface')), t('surface'), 4.5],
   ['sign letter: red', t('bulb-red'), t('bg'), 3],
   ['sign letter: green', t('bulb-green'), t('bg'), 3],
   ['sign letter: gold', t('bulb-gold'), t('bg'), 3],
@@ -95,7 +99,7 @@ describe('lights motion guardrails', () => {
 
   it('finds the effects', () => {
     expect(anims.map((a) => a.decl.split(' ')[0])).toEqual(
-      expect.arrayContaining(['bulb-chase', 'twinkle', 'power-on', 'faulty-bulb', 'snowfall-near', 'warm-up', 'live-pulse']),
+      expect.arrayContaining(['bulb-chase', 'twinkle', 'power-on', 'faulty-bulb', 'snowfall-near', 'warm-up', 'live-pulse', 'bulb-pulse']),
     )
   })
 

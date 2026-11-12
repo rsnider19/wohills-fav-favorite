@@ -944,3 +944,232 @@ body::after {
   height: 100%;
   object-fit: cover;
 }
+
+/* ---------------------------------------------------------------------------------------
+   14. The map and the navigate button (M6). The frame holds still (data-static); the only
+       animation is the picked bulb's pulse, in map/map.css (which also pauses it while
+       the map is scrolled away). Phones and tablets: the house sheet sits over the bottom
+       of the map. From 1024px: a 360px panel on the right.
+   ------------------------------------------------------------------------------------- */
+/* The view toggle reuses the admin's segmented look; its icons follow the text color. */
+[data-slot="segmented"][data-variant="view"] { flex-wrap: nowrap; }
+[data-slot="segmented"][data-variant="view"] svg { flex: none; }
+
+[data-slot="house-map"] {
+  position: relative;
+  display: grid;
+  grid-template-areas: "map";
+  background: #0b0d18;
+}
+[data-slot="house-map-area"] {
+  grid-area: map;
+  position: relative;
+  height: min(68dvh, 600px);
+  min-height: 420px;
+  overflow: hidden;
+}
+[data-slot="house-sheet-slot"] {
+  grid-area: map;
+  align-self: end;
+  z-index: 3;
+  padding: 8px;
+}
+[data-slot="map-panel"] { display: none; }
+[data-slot="map-loading"],
+[data-slot="map-fallback"] {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  text-align: center;
+  color: rgb(255 246 224 / 0.75);
+  background: var(--color-sunken);
+}
+[data-slot="map-loading"] {
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+  color: var(--color-primary);
+}
+/* "Tap a bulb to see the house": a small sign at the bottom while nothing is picked. */
+[data-slot="map-hint"] {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  z-index: 2;
+  transform: translateX(-50%);
+  pointer-events: none;
+  white-space: nowrap;
+  border-radius: 999px;
+  padding: 0.45rem 1rem;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-fg);
+  background: rgb(5 6 13 / 0.85);
+  box-shadow: inset 0 0 0 1px rgb(255 194 26 / 0.45), 0 0 18px -4px rgb(255 194 26 / 0.7);
+}
+
+/* The house sheet: photo thumbnail and text side by side, actions underneath. */
+[data-slot="house-sheet"] {
+  position: relative;
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  grid-template-areas: "photo body" "actions actions";
+  column-gap: 12px;
+  row-gap: 12px;
+  padding: 12px;
+  background: rgb(14 17 38 / 0.97);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 194 26 / 0.35),
+    0 0 36px -10px rgb(255 194 26 / 0.6),
+    0 -10px 30px rgb(0 0 0 / 0.45);
+}
+[data-slot="sheet-photo"] {
+  grid-area: photo;
+  position: relative;
+  align-self: start;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: var(--color-sunken);
+}
+[data-slot="sheet-photo"] img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+[data-slot="sheet-photo-fallback"] {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: rgb(255 246 224 / 0.75);
+}
+/* The number pill, smaller on the thumbnail. */
+[data-slot="sheet-photo"] [data-slot="house-number"] {
+  top: 0.3rem;
+  left: 0.3rem;
+  padding: 0.15rem 0.45rem 0.2rem;
+  font-size: 0.55rem;
+}
+[data-slot="sheet-photo"] [data-slot="house-number"] b { font-size: 1rem; }
+[data-slot="sheet-body"] {
+  display: contents;
+}
+[data-slot="house-sheet"] [data-slot="house-title"] {
+  grid-area: body;
+  align-self: center;
+  padding-right: 44px; /* the close button */
+  font-size: 1.1rem;
+}
+[data-slot="house-sheet"] [data-slot="house-title"]:focus { outline: none; }
+/* With a name, the address goes under it in the same cell. */
+[data-slot="house-sheet"]:has([data-slot="house-address"]) [data-slot="house-title"] { align-self: start; }
+[data-slot="house-sheet"] [data-slot="house-address"] {
+  grid-area: body;
+  align-self: end;
+}
+[data-slot="sheet-actions"] {
+  grid-area: actions;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+[data-slot="sheet-close"] {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--color-fg);
+  background: rgb(5 6 13 / 0.7);
+  box-shadow: inset 0 0 0 1px rgb(255 246 224 / 0.25);
+  cursor: pointer;
+}
+[data-slot="sheet-close"]:hover { box-shadow: inset 0 0 0 2px var(--color-primary); }
+
+@media (min-width: 1024px) {
+  [data-slot="house-map"] {
+    grid-template-columns: minmax(0, 1fr) 360px;
+    grid-template-areas: "map side";
+  }
+  [data-slot="house-map-area"] { height: 620px; }
+  [data-slot="house-sheet-slot"],
+  [data-slot="map-panel"] {
+    grid-area: side;
+    align-self: stretch;
+    padding: 0;
+    background: var(--color-surface);
+    box-shadow: inset 1px 0 0 rgb(255 194 26 / 0.3);
+  }
+  [data-slot="map-panel"] {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 2rem;
+  }
+  [data-slot="map-hint"] { display: none; }
+  [data-slot="house-sheet"] {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  [data-slot="sheet-photo"] {
+    flex: none;
+    align-self: stretch;
+  }
+  [data-slot="sheet-photo"] [data-slot="house-number"] {
+    top: 0.6rem;
+    left: 0.6rem;
+    padding: 0.3rem 0.75rem 0.35rem;
+    font-size: 0.65rem;
+  }
+  [data-slot="sheet-photo"] [data-slot="house-number"] b { font-size: 1.35rem; }
+  [data-slot="sheet-body"] {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1.25rem 1.5rem 1.5rem;
+  }
+  [data-slot="house-sheet"] [data-slot="house-title"],
+  [data-slot="house-sheet"] [data-slot="house-address"] { align-self: stretch; }
+  [data-slot="house-sheet"] [data-slot="house-title"] {
+    padding-right: 0;
+    font-size: 1.4rem;
+  }
+  [data-slot="sheet-actions"] { margin-top: 0.75rem; }
+}
+[data-slot="map-panel-title"] {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  line-height: 1.1;
+  color: var(--color-fg);
+  text-shadow: 0 0 18px rgb(34 255 122 / 0.6);
+}
+
+/* The navigate button: a round 48px ghost with a gold road-sign icon on cards; "Directions"
+   with the icon in the sheet. */
+[data-slot="navigate"][data-variant="icon"] {
+  width: 48px;
+  padding: 0;
+  color: var(--color-primary);
+}
+[data-slot="navigate"] svg { flex: none; }

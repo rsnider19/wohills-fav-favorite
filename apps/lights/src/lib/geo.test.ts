@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { boxCenter, distanceMeters, geofence, inBox, mapsSearchUrl, padBox, roundPoint } from './geo'
+import { boxCenter, distanceMeters, geofence, inBox, mapsSearchUrl, padBox, pointsBox, roundPoint } from './geo'
 import { DEFAULT_LIGHTS_SETTINGS } from './phase'
 
 const box = geofence(DEFAULT_LIGHTS_SETTINGS)
@@ -39,4 +39,18 @@ describe('points', () => {
   it('links Google Maps to the exact pin', () => {
     expect(mapsSearchUrl(candlewood)).toBe('https://www.google.com/maps/search/?api=1&query=40.123140,-83.051570')
   })
+})
+
+describe('pointsBox', () => {
+  it('is null without points', () => expect(pointsBox([])).toBeNull())
+  it('is a point for one house', () =>
+    expect(pointsBox([{ lat: 40.12, lng: -83.05 }])).toEqual({ minLat: 40.12, maxLat: 40.12, minLng: -83.05, maxLng: -83.05 }))
+  it('spans every house', () =>
+    expect(
+      pointsBox([
+        { lat: 40.12314, lng: -83.05157 },
+        { lat: 40.137, lng: -83.059 },
+        { lat: 40.12474, lng: -83.04227 },
+      ]),
+    ).toEqual({ minLat: 40.12314, maxLat: 40.137, minLng: -83.059, maxLng: -83.04227 }))
 })

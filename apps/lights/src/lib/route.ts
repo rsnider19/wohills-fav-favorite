@@ -26,14 +26,15 @@ export function routeHref(route: Route, search = ''): string {
   return PATHS[route] + (query ? `?${query}` : '')
 }
 
-const EVENT = 'lights:navigate'
+/** Fired after navigate() changes the URL (history.pushState fires no popstate). */
+export const NAVIGATE_EVENT = 'lights:navigate'
 
 /** Go to a route without reloading. */
 export function navigate(route: Route, { replace = false }: { replace?: boolean } = {}) {
   const href = routeHref(route, window.location.search)
   if (replace) window.history.replaceState(null, '', href)
   else window.history.pushState(null, '', href)
-  window.dispatchEvent(new Event(EVENT))
+  window.dispatchEvent(new Event(NAVIGATE_EVENT))
   window.scrollTo({ top: 0 })
 }
 
@@ -53,10 +54,10 @@ export function useRoute(): Route {
   useEffect(() => {
     const sync = () => setRoute(parseRoute(window.location.pathname))
     window.addEventListener('popstate', sync)
-    window.addEventListener(EVENT, sync)
+    window.addEventListener(NAVIGATE_EVENT, sync)
     return () => {
       window.removeEventListener('popstate', sync)
-      window.removeEventListener(EVENT, sync)
+      window.removeEventListener(NAVIGATE_EVENT, sync)
     }
   }, [])
   return route

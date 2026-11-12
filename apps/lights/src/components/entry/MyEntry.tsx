@@ -59,9 +59,14 @@ export function MyEntry({ entry, canEdit, votingStarted, votingOpensAt, onEdit, 
       </div>
 
       {entry.status === 'approved' && (
-        <a href={lineup} className="btn-ghost">
-          {MY_ENTRY.seeInLineup}
-        </a>
+        <div className="flex flex-wrap gap-3">
+          <a href={lineup} className="btn-ghost">
+            {MY_ENTRY.seeInLineup}
+          </a>
+          <a href={`/?view=map&house=${entry.entry_number}#houses`} className="btn-ghost">
+            {MY_ENTRY.seeOnMap}
+          </a>
+        </div>
       )}
 
       <div className="space-y-4 border-t border-fg/10 pt-6">

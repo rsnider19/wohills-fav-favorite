@@ -53,3 +53,12 @@ export function distanceMeters(a: LatLng, b: LatLng): number {
 export function mapsSearchUrl(p: LatLng): string {
   return `https://www.google.com/maps/search/?api=1&query=${p.lat.toFixed(6)},${p.lng.toFixed(6)}`
 }
+
+/** The smallest box around some points (the map's opening view: every approved house), or
+ *  null when there are none. */
+export function pointsBox(points: readonly LatLng[]): Box | null {
+  if (points.length === 0) return null
+  const lats = points.map((p) => p.lat)
+  const lngs = points.map((p) => p.lng)
+  return { minLat: Math.min(...lats), maxLat: Math.max(...lats), minLng: Math.min(...lngs), maxLng: Math.max(...lngs) }
+}

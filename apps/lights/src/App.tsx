@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   useContestSettings,
   useIsAdmin,
@@ -9,7 +9,7 @@ import {
   useToast,
 } from '@wohills/core'
 import { Marquee, PhoneAuthDialog, Toaster } from '@wohills/ui'
-import type { LightsSettings } from './types'
+import type { House, LightsSettings } from './types'
 import {
   contestStatus,
   type Phase,
@@ -22,6 +22,8 @@ import { useApprovedHouses } from './lib/houses'
 import { useAdminEntries, useMyEntry } from './lib/entries'
 import { useMotion } from './lib/useMotion'
 import { onRouteClick, routeHref, useRoute, type Route } from './lib/route'
+import { geofence } from './lib/geo'
+import { useView } from './lib/view'
 import { AUTH_LABELS, ENTER, heroTagline, NAV, TICKER, TOASTS } from './copy'
 import { Header } from './components/Header'
 import { Hero } from './components/Hero'
@@ -29,6 +31,10 @@ import { Gallery } from './components/Gallery'
 import { Footer } from './components/Footer'
 import { EntryPage } from './components/entry/EntryPage'
 import { AdminPage } from './components/admin/AdminPage'
+import { MapView } from './components/MapView'
+import { prefetchMap } from './map/load'
+import { NavigateButton } from './components/NavigateButton'
+import { ViewToggle } from './components/ViewToggle'
 
 const toDate = (iso: string | null) => (iso ? new Date(iso) : null)
 
@@ -57,6 +63,7 @@ export default function App() {
   const { data: houses, loading: housesLoading, refresh: refreshHouses } = useApprovedHouses()
   const { entry: myEntry, failed: myEntryFailed, refresh: refreshMyEntry } = useMyEntry(session)
   const admin = useAdminEntries(isAdmin)
+  const [view, setView] = useView()
 
   // ?preview=<phase> shows another phase's look without touching the database:
   // always in `npm run dev`, and for the signed-in admin on a real build. Display only:
@@ -119,6 +126,29 @@ export default function App() {
   ) : null
   const waiting = admin.rows?.filter((r) => r.status === 'pending').length ?? 0
 
+  // Lineup ⇄ map (M6). Both callbacks are stable between clock ticks, so the memoized cards
+  // and the map don't re-render every second.
+  const { geofence_min_lat, geofence_max_lat, geofence_min_lng, geofence_max_lng } = settings
+  const box = useMemo(
+    () => geofence({ geofence_min_lat, geofence_max_lat, geofence_min_lng, geofence_max_lng }),
+    [geofence_min_lat, geofence_max_lat, geofence_min_lng, geofence_max_lng],
+  )
+  const renderCard = useCallback(
+    (house: House) => ({
+      actions: (
+        <span className="ml-auto">
+          <NavigateButton house={house} variant="icon" />
+        </span>
+      ),
+    }),
+    [],
+  )
+  const ownPending = myEntry?.status === 'pending'
+  const renderMap = useCallback(
+    (ordered: House[]) => <MapView houses={ordered} box={box} ownPending={ownPending} onView={setView} onMessage={flash} />,
+    [box, ownPending, setView, flash],
+  )
+
   return (
     <>
       <div data-slot="sky" aria-hidden="true" />
@@ -179,6 +209,10 @@ export default function App() {
               phase={phase}
               submissionsOpenAt={entriesOpenAt}
               onRetry={refreshHouses}
+              view={view}
+              toolbar={houses && houses.length > 0 ? <ViewToggle view={view} onChange={setView} onPrefetch={prefetchMap} /> : null}
+              renderCard={renderCard}
+              renderMap={renderMap}
               emptyAction={
                 enterCta ? (
                   <RouteLink to="enter" className="btn-bulb">
