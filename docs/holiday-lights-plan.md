@@ -387,8 +387,9 @@ RLS highlights:
 
 ## 5. Design direction: "in-your-face holiday lights"
 
-> Note: the `frontend-design` skill wasn't installed in the planning session, so this is
-> a first-pass direction to be refined in M4.
+> Note: this was the first-pass direction. M4 made the final calls (tokens, fonts, every
+> effect as CSS, layout, copy, measured guardrails); see
+> [`docs/milestones/M4.md`](milestones/M4.md) "Design system". Where they differ, M4 wins.
 
 - **The page is the night sky.** Near-black blue (`#05060d`) with faint snow/grain, so the
   colors actually glow.
@@ -476,12 +477,13 @@ Today is Nov 12. The contest dates set three hard gates:
   is unchanged after `supabase db reset`.
 
 ### M4: Lights app shell + visual system
+- Spec: [`docs/milestones/M4.md`](milestones/M4.md).
 - Scaffold `apps/lights` on the shared packages.
-- Lights `@theme` + `data-slot` effects; hero, countdown, gallery of mock entries,
-  phone auth dialog in theme.
-- Run the `frontend-design` pass here; verify reduced-motion and flash-rate guardrails.
-- **Done when:** the themed app runs locally with mock data, and screenshots (phone and
-  desktop) are on the PR for feedback.
+- Lights `@theme` + `data-slot` effects; hero, countdown, gallery of the local seed's
+  approved houses (real `lights` data through the shared hooks), phone auth dialog in theme.
+- Design pass here; verify reduced-motion and flash-rate guardrails.
+- **Done when:** the themed app runs locally against the local stack, and screenshots
+  (phone and desktop) are on the PR for feedback.
 
 ### M5: Submission flow + moderation
 - Photo capture/pick, then shared resize/upload, address entry, GPS pin with drag

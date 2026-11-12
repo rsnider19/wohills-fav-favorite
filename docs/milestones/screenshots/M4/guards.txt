@@ -1,0 +1,17 @@
+ok   phone: fonts loaded (missing: none)
+ok   phone: no horizontal scroll (overflow 0px)
+ok   phone: tap targets ≥ 44px (too small: none)
+ok   phone: pause switch stops every animation (44 → 0, aria-pressed=true)
+ok   phone: the pause is remembered after a reload
+ok   phone: dialog controls ≥ 44px tall (too small: none)
+ok   phone: no console errors (none)
+ok   phone: reduced motion = static and lit ({"anims":0,"title":"1","frame":true})
+ok   desktop: fonts loaded (missing: none)
+ok   desktop: no horizontal scroll (overflow 0px)
+ok   desktop: tap targets ≥ 44px (too small: none)
+ok   desktop: pause switch stops every animation (44 → 0, aria-pressed=true)
+ok   desktop: the pause is remembered after a reload
+ok   desktop: dialog controls ≥ 44px tall (too small: none)
+ok   desktop: no console errors (none)
+ok   desktop: reduced motion = static and lit ({"anims":0,"title":"1","frame":true})
+GUARDS OK
