@@ -1,0 +1,73 @@
+@import "tailwindcss";
+@import "@wohills/ui/tokens.css";
+@import "@wohills/ui/motion.css";
+@import "./effects.css";
+
+/* Lights theme: values for the shared token contract (@wohills/ui/tokens.css), plus the
+   C9 bulb palette the effects use. Contrast of every text pair is pinned in design.test.ts. */
+@theme {
+  --color-bg: #05060d; /* night sky */
+  --color-sunken: #0a0c1a; /* photo wells, skeletons */
+  --color-surface: #0e1126; /* cards, dialog, countdown */
+  --color-field: #070915; /* text inputs */
+  --color-fg: #fff6e0; /* warm-white text */
+  --color-primary: #ffc21a; /* gold: CTAs, eyebrows, focus */
+  --color-primary-fg: #1a1000; /* text on gold */
+  --color-accent: #22ff7a; /* green: "live" */
+  --color-danger: #ff7a85; /* error text: a red light enough for dark backgrounds */
+  --color-scrim: #000000;
+  --color-glow: #ffc21a;
+
+  /* C9 bulbs, full saturation. */
+  --color-bulb-red: #ff2d3d;
+  --color-bulb-green: #22ff7a;
+  --color-bulb-gold: #ffc21a;
+  --color-bulb-blue: #2b8cff;
+  --color-bulb-magenta: #ff3df0;
+  --color-bulb-white: #fff3d6;
+  --color-wire: #134a2b;
+
+  --font-display: "Bungee", "Arial Black", Impact, system-ui, sans-serif;
+  --font-shade: "Bungee Shade", "Bungee", "Arial Black", Impact, sans-serif;
+  --font-dots: "Doto", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-sans: "Rubik", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* Square corners: framed things wear a marquee bulb frame (border-image ignores radius). */
+  --radius-card: 0px;
+  --radius-dialog: 0px;
+  --radius-field: 0.375rem;
+
+  --shadow-card: 0 0 0 1px rgb(255 194 26 / 0.16), 0 0 36px -10px rgb(255 194 26 / 0.45);
+  --shadow-card-hover: 0 0 0 1px rgb(255 194 26 / 0.35), 0 0 52px -8px rgb(255 194 26 / 0.7);
+  --shadow-selected: 0 0 0 3px #ffc21a, 0 0 36px 4px rgb(255 194 26 / 0.6), 0 0 110px 12px rgb(255 140 26 / 0.35);
+
+  /* Doto is monospaced: every figure advances 0.6em. */
+  --countdown-digit-width: 0.6em;
+}
+
+html {
+  background-color: var(--color-bg);
+  color-scheme: dark;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  font-family: var(--font-sans);
+  background-color: var(--color-bg);
+  color: var(--color-fg);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--color-primary);
+  color: var(--color-primary-fg);
+}
+
+/* One focus ring everywhere: warm white reads on every bulb color and on the night sky.
+   (Not on tabindex=-1, so the dialog panel taking focus on open draws no ring.) */
+:where(a, button, input, textarea, select, [tabindex="0"]):focus-visible {
+  outline: 3px solid var(--color-bulb-white);
+  outline-offset: 3px;
+}

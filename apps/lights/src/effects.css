@@ -1,0 +1,599 @@
+/* Lights effects. Unlayered on purpose: these rules beat Tailwind utilities (which live
+   in @layer utilities), so [data-slot] restyling of shared components needs no !important.
+
+   Guardrails (pinned by design.test.ts and checked with the M4 flash probe):
+   - Every looping animation has a cycle of at least 1s, and step chases advance at most
+     2 steps per second, so nothing flashes more than 3 times per second (WCAG 2.3.1).
+   - The un-animated style is always the fully lit state. Animations only dim or move,
+     so killing them (reduced motion, or the header's pause switch) leaves the lights ON.
+*/
+
+/* ---------------------------------------------------------------------------------------
+   0. Bulb color hook: [data-bulb] sets --bulb for anything inside it.
+   ------------------------------------------------------------------------------------- */
+[data-bulb="red"] { --bulb: var(--color-bulb-red); }
+[data-bulb="green"] { --bulb: var(--color-bulb-green); }
+[data-bulb="gold"] { --bulb: var(--color-bulb-gold); }
+[data-bulb="blue"] { --bulb: var(--color-bulb-blue); }
+[data-bulb="magenta"] { --bulb: var(--color-bulb-magenta); }
+[data-bulb="white"] { --bulb: var(--color-bulb-white); }
+
+/* ---------------------------------------------------------------------------------------
+   1. Night sky: deep-blue zenith, warm glow on the horizon, two layers of falling snow,
+      fine film grain on top of everything.
+   ------------------------------------------------------------------------------------- */
+[data-slot="sky"] {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 55% at 50% 0%, #0f1a45 0%, rgb(15 26 69 / 0) 70%),
+    radial-gradient(90% 45% at 50% 105%, rgb(255 140 26 / 0.1) 0%, rgb(255 140 26 / 0) 70%);
+}
+[data-slot="sky"]::before,
+[data-slot="sky"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+/* Near flakes: 320px tile, falls one tile every 24s (a slow drift, never a flash). */
+[data-slot="sky"]::before {
+  top: -320px;
+  background-image:
+    radial-gradient(circle at 24px 40px, rgb(255 255 255 / 0.55) 0 1.5px, transparent 2.2px),
+    radial-gradient(circle at 150px 120px, rgb(255 255 255 / 0.4) 0 1.2px, transparent 1.9px),
+    radial-gradient(circle at 270px 210px, rgb(255 255 255 / 0.5) 0 1.8px, transparent 2.5px),
+    radial-gradient(circle at 96px 280px, rgb(255 255 255 / 0.35) 0 1.1px, transparent 1.8px),
+    radial-gradient(circle at 210px 20px, rgb(255 255 255 / 0.3) 0 1px, transparent 1.6px);
+  background-size: 320px 320px;
+  animation: snowfall-near 24s linear infinite;
+}
+/* Far flakes: smaller, dimmer, slower (parallax). */
+[data-slot="sky"]::after {
+  top: -200px;
+  background-image:
+    radial-gradient(circle at 40px 60px, rgb(255 255 255 / 0.28) 0 0.8px, transparent 1.4px),
+    radial-gradient(circle at 140px 150px, rgb(255 255 255 / 0.22) 0 0.7px, transparent 1.3px),
+    radial-gradient(circle at 180px 30px, rgb(255 255 255 / 0.25) 0 0.9px, transparent 1.5px);
+  background-size: 200px 200px;
+  animation: snowfall-far 40s linear infinite;
+}
+@keyframes snowfall-near { to { transform: translate3d(0, 320px, 0); } }
+@keyframes snowfall-far { to { transform: translate3d(0, 200px, 0); } }
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------------------------------------------------------------------------------------
+   2. Neon text. The core stays warm white or bulb-colored (that's the contrast that
+      counts); the halo is layered colored shadow in --neon.
+   ------------------------------------------------------------------------------------- */
+.neon {
+  --neon: var(--bulb, var(--color-glow));
+  text-shadow:
+    0 0 1px rgb(255 255 255 / 0.6),
+    0 0 6px var(--neon),
+    0 0 16px var(--neon),
+    0 0 34px var(--neon),
+    0 0 64px color-mix(in srgb, var(--neon) 55%, transparent);
+}
+/* A smaller halo for body-sized labels (eyebrows, badges, units). */
+.neon-sm {
+  --neon: var(--bulb, var(--color-glow));
+  text-shadow:
+    0 0 4px color-mix(in srgb, var(--neon) 80%, transparent),
+    0 0 14px color-mix(in srgb, var(--neon) 55%, transparent);
+}
+
+/* The hero sign: "HOLIDAY" is a warm-white tube with a red halo; every letter of
+   "LIGHTS" is its own bulb color. */
+[data-slot="hero-title"] {
+  animation: power-on 1.6s linear 0.25s both;
+}
+[data-slot="hero-title-top"] {
+  --bulb: var(--color-bulb-red);
+  color: var(--color-fg);
+}
+[data-slot="hero-title-letter"] {
+  color: var(--bulb);
+}
+/* One "faulty" bulb in the sign dips once every 6 seconds. */
+[data-slot="hero-title-letter"][data-faulty] {
+  animation: faulty-bulb 6s linear 2.5s infinite;
+}
+
+/* Sign power-on, once: off → flicker → lit within 1.2s. Five opacity steps, at most
+   two full flashes in any one second. */
+@keyframes power-on {
+  0% { opacity: 0.12; }
+  8% { opacity: 1; }
+  19% { opacity: 0.2; }
+  39% { opacity: 1; }
+  50% { opacity: 0.55; }
+  75%, 100% { opacity: 1; }
+}
+@keyframes faulty-bulb {
+  0%, 94%, 100% { opacity: 1; }
+  96% { opacity: 0.3; }
+}
+
+/* ---------------------------------------------------------------------------------------
+   3. Light-string swag (components/LightString.tsx). A dimming wave runs along the string:
+      each bulb dips once per 3.2s, its neighbor 0.2s later.
+   ------------------------------------------------------------------------------------- */
+.light-string {
+  display: block;
+  width: 100%;
+  height: clamp(84px, 10vw, 128px);
+  overflow: visible;
+}
+.swag-wire {
+  fill: none;
+  stroke: var(--color-wire);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.swag-socket { fill: #1f7a3e; }
+.swag-glass { fill: var(--bulb); }
+.swag-shine { fill: #ffffff; opacity: 0.55; }
+.swag-halo-core { stop-color: var(--bulb); stop-opacity: 0.75; }
+.swag-halo-edge { stop-color: var(--bulb); stop-opacity: 0; }
+.swag-bulb {
+  animation: twinkle 3.2s ease-in-out infinite;
+  animation-delay: calc(var(--i) * -0.2s);
+}
+@keyframes twinkle {
+  0%, 70%, 100% { opacity: 1; }
+  82% { opacity: 0.35; }
+}
+
+/* ---------------------------------------------------------------------------------------
+   4. Marquee bulb frame. The bulbs live in the element's border: a 9-slice SVG
+      border-image (slice 24 of 144) with warm-white corner bulbs and edge tiles of
+      red/green/gold/blue. `round` fits a whole number of bulbs on each edge.
+      Chasing = stepping through four pre-shifted frames: 4 steps per 2.4s
+      (1.67 steps/s), so each bulb changes color 1.67×/s and makes one bright↔dim
+      pair per 2.4s cycle.
+   ------------------------------------------------------------------------------------- */
+:root {
+  --bulb-frame-0: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='144' height='144' viewBox='0 0 144 144'><defs><g id='r'><circle r='10' fill='%23ff2d3d' fill-opacity='.3'/><circle r='5.5' fill='%23ff2d3d'/><circle cx='-1.8' cy='-1.8' r='1.7' fill='%23fff' fill-opacity='.8'/></g><g id='g'><circle r='10' fill='%2322ff7a' fill-opacity='.3'/><circle r='5.5' fill='%2322ff7a'/><circle cx='-1.8' cy='-1.8' r='1.7' fill='%23fff' fill-opacity='.8'/></g><g id='y'><circle r='10' fill='%23ffc21a' fill-opacity='.3'/><circle r='5.5' fill='%23ffc21a'/><circle cx='-1.8' cy='-1.8' r='1.7' fill='%23fff' fill-opacity='.8'/></g><g id='b'><circle r='10' fill='%232b8cff' fill-opacity='.3'/><circle r='5.5' fill='%232b8cff'/><circle cx='-1.8' cy='-1.8' r='1.7' fill='%23fff' fill-opacity='.8'/></g><g id='w'><circle r='10' fill='%23fff3d6' fill-opacity='.3'/><circle r='5.5' fill='%23fff3d6'/><circle cx='-1.8' cy='-1.8' r='1.7' fill='%23fff' fill-opacity='.8'/></g></defs><rect x='1' y='1' width='142' height='142' rx='7' fill='%230b0e20' stroke='%23ffc21a' stroke-opacity='.22' stroke-width='2'/><rect x='23' y='23' width='98' height='98' fill='none' stroke='%23ffc21a' stroke-opacity='.18' stroke-width='2'/><use href='%23w' x='12' y='12'/><use href='%23w' x='132' y='12'/><use href='%23w' x='12' y='132'/><use href='%23w' x='132' y='132'/><use href='%23r' x='36' y='12'/><use href='%23r' x='132' y='36'/><use href='%23r' x='36' y='132'/><use href='%23r' x='12' y='36'/><use href='%23g' x='60' y='12'/><use href='%23g' x='132' y='60'/><use href='%23g' x='60' y='132'/><use href='%23g' x='12' y='60'/><use href='%23y' x='84' y='12'/><use href='%23y' x='132' y='84'/><use href='%23y' x='84' y='132'/><use href='%23y' x='12' y='84'/><use href='%23b' x='108' y='12'/><use href='%23b' x='132' y='108'/><use href='%23b' x='108' y='132'/><use href='%23b' x='12' y='108'/></svg>");
+  --bulb-frame-1: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='144' height='144' viewBox='0 0 144 144'><defs><g id='r'><circle r='10' fill='%23ff2d3d' fill-opacity='.3'/><circle r='5.5' fill='%23ff2d3d'/><circle cx='-1.8' cy='-1.8' r='1.7' fill='%23fff' fill-opacity='.8'/></g><g id='g'><circle r='10' fill='%2322ff7a' fill-opacity='.3'/><circle r='5.5' fill='%2322ff7a'/><circle cx='-1.8' cy='-1.8' r='1.7' fill='%23fff' fill-opacity='.8'/></g><g id='y'><circle r='10' fill='%23ffc21a' fill-opacity='.3'/><circle r='5.5' fill='%23ffc21a'/><circle cx='-1.8' cy='-1.8' r='1.7' fill='%23fff' fill-opacity='.8'/></g><g id='b'><circle r='10' fill='%232b8cff' fill-opacity='.3'/><circle r='5.5' fill='%232b8cff'/><circle cx='-1.8' cy='-1.8' r='1.7' fill='%23fff' fill-opacity='.8'/></g><g id='w'><circle r='10' fill='%23fff3d6' fill-opacity='.3'/><circle r='5.5' fill='%23fff3d6'/><circle cx='-1.8' cy='-1.8' r='1.7' fill='%23fff' fill-opacity='.8'/></g></defs><rect x='1' y='1' width='142' height='142' rx='7' fill='%230b0e20' stroke='%23ffc21a' stroke-opacity='.22' stroke-width='2'/><rect x='23' y='23' width='98' height='98' fill='none' stroke='%23ffc21a' stroke-opacity='.18' stroke-width='2'/><use href='%23w' x='12' y='12'/><use href='%23w' x='132' y='12'/><use href='%23w' x='12' y='132'/><use href='%23w' x='132' y='132'/><use href='%23b' x='36' y='12'/><use href='%23b' x='132' y='36'/><use href='%23g' x='36' y='132'/><use href='%23g' x='12' y='36'/><use href='%23r' x='60' y='12'/><use href='%23r' x='132' y='60'/><use href='%23y' x='60' y='132'/><use href='%23y' x='12' y='60'/><use href='%23g' x='84' y='12'/><use href='%23g' x='132' y='84'/><use href='%23b' x='84' y='132'/><use href='%23b' x='12' y='84'/><use href='%23y' x='108' y='12'/><use href='%23y' x='132' y='108'/><use href='%23r' x='108' y='132'/><use href='%23r' x='12' y='108'/></svg>");
+  --bulb-frame-2: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='144' height='144' viewBox='0 0 144 144'><defs><g id='r'><circle r='10' fill='%23ff2d3d' fill-opacity='.3'/><circle r='5.5' fill='%23ff2d3d'/><circle cx='-1.8' cy='-1.8' r='1.7' fill='%23fff' fill-opacity='.8'/></g><g id='g'><circle r='10' fill='%2322ff7a' fill-opacity='.3'/><circle r='5.5' fill='%2322ff7a'/><circle cx='-1.8' cy='-1.8' r='1.7' fill='%23fff' fill-opacity='.8'/></g><g id='y'><circle r='10' fill='%23ffc21a' fill-opacity='.3'/><circle r='5.5' fill='%23ffc21a'/><circle cx='-1.8' cy='-1.8' r='1.7' fill='%23fff' fill-opacity='.8'/></g><g id='b'><circle r='10' fill='%232b8cff' fill-opacity='.3'/><circle r='5.5' fill='%232b8cff'/><circle cx='-1.8' cy='-1.8' r='1.7' fill='%23fff' fill-opacity='.8'/></g><g id='w'><circle r='10' fill='%23fff3d6' fill-opacity='.3'/><circle r='5.5' fill='%23fff3d6'/><circle cx='-1.8' cy='-1.8' r='1.7' fill='%23fff' fill-opacity='.8'/></g></defs><rect x='1' y='1' width='142' height='142' rx='7' fill='%230b0e20' stroke='%23ffc21a' stroke-opacity='.22' stroke-width='2'/><rect x='23' y='23' width='98' height='98' fill='none' stroke='%23ffc21a' stroke-opacity='.18' stroke-width='2'/><use href='%23w' x='12' y='12'/><use href='%23w' x='132' y='12'/><use href='%23w' x='12' y='132'/><use href='%23w' x='132' y='132'/><use href='%23y' x='36' y='12'/><use href='%23y' x='132' y='36'/><use href='%23y' x='36' y='132'/><use href='%23y' x='12' y='36'/><use href='%23b' x='60' y='12'/><use href='%23b' x='132' y='60'/><use href='%23b' x='60' y='132'/><use href='%23b' x='12' y='60'/><use href='%23r' x='84' y='12'/><use href='%23r' x='132' y='84'/><use href='%23r' x='84' y='132'/><use href='%23r' x='12' y='84'/><use href='%23g' x='108' y='12'/><use href='%23g' x='132' y='108'/><use href='%23g' x='108' y='132'/><use href='%23g' x='12' y='108'/></svg>");
+  --bulb-frame-3: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='144' height='144' viewBox='0 0 144 144'><defs><g id='r'><circle r='10' fill='%23ff2d3d' fill-opacity='.3'/><circle r='5.5' fill='%23ff2d3d'/><circle cx='-1.8' cy='-1.8' r='1.7' fill='%23fff' fill-opacity='.8'/></g><g id='g'><circle r='10' fill='%2322ff7a' fill-opacity='.3'/><circle r='5.5' fill='%2322ff7a'/><circle cx='-1.8' cy='-1.8' r='1.7' fill='%23fff' fill-opacity='.8'/></g><g id='y'><circle r='10' fill='%23ffc21a' fill-opacity='.3'/><circle r='5.5' fill='%23ffc21a'/><circle cx='-1.8' cy='-1.8' r='1.7' fill='%23fff' fill-opacity='.8'/></g><g id='b'><circle r='10' fill='%232b8cff' fill-opacity='.3'/><circle r='5.5' fill='%232b8cff'/><circle cx='-1.8' cy='-1.8' r='1.7' fill='%23fff' fill-opacity='.8'/></g><g id='w'><circle r='10' fill='%23fff3d6' fill-opacity='.3'/><circle r='5.5' fill='%23fff3d6'/><circle cx='-1.8' cy='-1.8' r='1.7' fill='%23fff' fill-opacity='.8'/></g></defs><rect x='1' y='1' width='142' height='142' rx='7' fill='%230b0e20' stroke='%23ffc21a' stroke-opacity='.22' stroke-width='2'/><rect x='23' y='23' width='98' height='98' fill='none' stroke='%23ffc21a' stroke-opacity='.18' stroke-width='2'/><use href='%23w' x='12' y='12'/><use href='%23w' x='132' y='12'/><use href='%23w' x='12' y='132'/><use href='%23w' x='132' y='132'/><use href='%23g' x='36' y='12'/><use href='%23g' x='132' y='36'/><use href='%23b' x='36' y='132'/><use href='%23b' x='12' y='36'/><use href='%23y' x='60' y='12'/><use href='%23y' x='132' y='60'/><use href='%23r' x='60' y='132'/><use href='%23r' x='12' y='60'/><use href='%23b' x='84' y='12'/><use href='%23b' x='132' y='84'/><use href='%23g' x='84' y='132'/><use href='%23g' x='12' y='84'/><use href='%23r' x='108' y='12'/><use href='%23r' x='132' y='108'/><use href='%23y' x='108' y='132'/><use href='%23y' x='12' y='108'/></svg>");
+  --bulb-frame-off: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='144' height='144' viewBox='0 0 144 144'><defs><circle id='o' r='5.5' fill='%232a2f4d'/></defs><rect x='1' y='1' width='142' height='142' rx='7' fill='%230b0e20' stroke='%23fff3d6' stroke-opacity='.12' stroke-width='2'/><use href='%23o' x='12' y='12'/><use href='%23o' x='12' y='132'/><use href='%23o' x='36' y='12'/><use href='%23o' x='36' y='132'/><use href='%23o' x='60' y='12'/><use href='%23o' x='60' y='132'/><use href='%23o' x='84' y='12'/><use href='%23o' x='84' y='132'/><use href='%23o' x='108' y='12'/><use href='%23o' x='108' y='132'/><use href='%23o' x='132' y='12'/><use href='%23o' x='132' y='132'/><use href='%23o' x='12' y='36'/><use href='%23o' x='132' y='36'/><use href='%23o' x='12' y='60'/><use href='%23o' x='132' y='60'/><use href='%23o' x='12' y='84'/><use href='%23o' x='132' y='84'/><use href='%23o' x='12' y='108'/><use href='%23o' x='132' y='108'/></svg>");
+  --bulb-frame-lit: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='144' height='144' viewBox='0 0 144 144'><defs><g id='y'><circle r='11.5' fill='%23ffc21a' fill-opacity='.45'/><circle r='6' fill='%23ffc21a'/><circle cx='-1.8' cy='-1.8' r='1.9' fill='%23fff' fill-opacity='.9'/></g><g id='w'><circle r='11.5' fill='%23fff3d6' fill-opacity='.45'/><circle r='6' fill='%23fff3d6'/><circle cx='-1.8' cy='-1.8' r='1.9' fill='%23fff' fill-opacity='.9'/></g></defs><rect x='1' y='1' width='142' height='142' rx='7' fill='%231a1406' stroke='%23ffc21a' stroke-opacity='.6' stroke-width='2'/><use href='%23w' x='12' y='12'/><use href='%23w' x='132' y='12'/><use href='%23w' x='12' y='132'/><use href='%23w' x='132' y='132'/><use href='%23y' x='36' y='12'/><use href='%23y' x='132' y='36'/><use href='%23y' x='36' y='132'/><use href='%23y' x='12' y='36'/><use href='%23w' x='60' y='12'/><use href='%23w' x='132' y='60'/><use href='%23w' x='60' y='132'/><use href='%23w' x='12' y='60'/><use href='%23y' x='84' y='12'/><use href='%23y' x='132' y='84'/><use href='%23y' x='84' y='132'/><use href='%23y' x='12' y='84'/><use href='%23w' x='108' y='12'/><use href='%23w' x='132' y='108'/><use href='%23w' x='108' y='132'/><use href='%23w' x='12' y='108'/></svg>");
+}
+.bulb-frame {
+  --frame-w: 18px;
+  border: var(--frame-w) solid transparent;
+  border-image: var(--bulb-frame-0) 24 / var(--frame-w) round;
+  background-clip: padding-box;
+  box-shadow: var(--shadow-card);
+}
+@media (min-width: 640px) {
+  .bulb-frame { --frame-w: 22px; }
+}
+.bulb-frame[data-chase],
+.bulb-frame:is(:hover, :focus-within) {
+  animation: bulb-chase 2.4s step-end infinite;
+}
+.bulb-frame:is(:hover, :focus-within) {
+  box-shadow: var(--shadow-card-hover);
+}
+/* "Fully lit": the card you voted for (M7 sets data-state="lit"). Every bulb gold or
+   warm white, steady (no chase), with a big glow. Later in the file than :hover, so it wins. */
+.bulb-frame[data-state="lit"] {
+  border-image-source: var(--bulb-frame-lit);
+  box-shadow: var(--shadow-selected);
+  animation: none;
+}
+/* Unlit: dark glass (empty and error states). Loading adds a slow warm-up pulse (1.8s cycle). */
+.bulb-frame:is([data-state="off"], [data-state="loading"]) {
+  border-image-source: var(--bulb-frame-off);
+  box-shadow: none;
+  animation: none;
+}
+.bulb-frame[data-state="loading"] {
+  animation: warm-up 1.8s ease-in-out infinite;
+}
+@keyframes bulb-chase {
+  0% { border-image-source: var(--bulb-frame-0); }
+  25% { border-image-source: var(--bulb-frame-1); }
+  50% { border-image-source: var(--bulb-frame-2); }
+  75% { border-image-source: var(--bulb-frame-3); }
+  100% { border-image-source: var(--bulb-frame-0); }
+}
+@keyframes warm-up {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 0.9; }
+}
+
+/* ---------------------------------------------------------------------------------------
+   5. Buttons. Tap targets are at least 48px tall.
+   ------------------------------------------------------------------------------------- */
+.btn-bulb,
+.btn-ghost {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  border-radius: 999px;
+  padding: 0 1.6rem;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+/* A lit gold bulb: hot center, glowing edge. */
+.btn-bulb {
+  color: var(--color-primary-fg);
+  background: radial-gradient(130% 160% at 50% 0%, #ffe58f 0%, var(--color-primary) 52%, #e89a00 100%);
+  box-shadow:
+    inset 0 0 0 2px rgb(255 243 214 / 0.45),
+    0 0 18px -2px rgb(255 194 26 / 0.9),
+    0 0 48px -8px rgb(255 194 26 / 0.8);
+}
+.btn-bulb:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 0 0 2px rgb(255 243 214 / 0.6),
+    0 0 24px 0 rgb(255 194 26 / 1),
+    0 0 72px -6px rgb(255 194 26 / 0.9);
+}
+.btn-bulb:disabled {
+  cursor: not-allowed;
+  filter: saturate(0.3) brightness(0.6);
+  box-shadow: none;
+  transform: none;
+}
+.btn-ghost {
+  color: var(--color-fg);
+  background: rgb(255 246 224 / 0.04);
+  box-shadow: inset 0 0 0 2px rgb(255 246 224 / 0.35);
+}
+.btn-ghost:hover {
+  box-shadow:
+    inset 0 0 0 2px var(--color-primary),
+    0 0 24px -4px rgb(255 194 26 / 0.7);
+}
+
+/* ---------------------------------------------------------------------------------------
+   6. Header: phase badge with a "live" bulb, and the twinkle pause switch.
+   ------------------------------------------------------------------------------------- */
+[data-slot="phase-badge"] {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  padding: 0 0.8rem;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: var(--color-fg);
+  background: rgb(255 246 224 / 0.06);
+  box-shadow: inset 0 0 0 1px rgb(255 246 224 / 0.18);
+  white-space: nowrap;
+}
+[data-slot="phase-badge"][data-preview] {
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+  outline: 1px dashed rgb(255 194 26 / 0.6);
+  outline-offset: 3px;
+}
+[data-slot="phase-dot"] {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--bulb);
+  box-shadow: 0 0 6px var(--bulb), 0 0 14px var(--bulb);
+  animation: live-pulse 2s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+[data-slot="motion-toggle"] {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--color-fg);
+  background: rgb(255 246 224 / 0.06);
+  box-shadow: inset 0 0 0 1px rgb(255 246 224 / 0.18);
+  cursor: pointer;
+}
+[data-slot="motion-toggle"][aria-pressed="false"] svg {
+  filter: drop-shadow(0 0 4px var(--color-primary));
+}
+
+/* ---------------------------------------------------------------------------------------
+   7. Countdown (shared <Countdown>): a framed scoreboard of dot-matrix bulb digits.
+   ------------------------------------------------------------------------------------- */
+[data-slot="countdown-label"] {
+  --bulb: var(--color-bulb-green);
+  text-transform: uppercase;
+  margin-bottom: 0.9rem;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  color: var(--color-fg);
+  text-shadow:
+    0 0 4px color-mix(in srgb, var(--bulb) 80%, transparent),
+    0 0 14px color-mix(in srgb, var(--bulb) 55%, transparent);
+}
+[data-slot="countdown-timer"],
+[data-slot="scoreboard"] {
+  --frame-w: 18px;
+  border: var(--frame-w) solid transparent;
+  border-image: var(--bulb-frame-0) 24 / var(--frame-w) round;
+  background: #070815;
+  background-clip: padding-box;
+  box-shadow: var(--shadow-card);
+  animation: bulb-chase 2.4s step-end infinite;
+}
+@media (min-width: 640px) {
+  [data-slot="countdown-timer"],
+  [data-slot="scoreboard"] { --frame-w: 22px; }
+}
+/* The scoreboard's message when nothing counts down (closed, results). */
+[data-slot="scoreboard"] {
+  margin: 0;
+  padding: 1.4rem 1rem;
+  text-align: center;
+  text-transform: uppercase;
+  font-family: var(--font-dots);
+  font-size: clamp(2rem, 9vw, 3.25rem);
+  font-weight: 900;
+  line-height: 1.05;
+  color: var(--color-bulb-gold);
+  text-shadow:
+    0 0 2px rgb(255 243 214 / 0.9),
+    0 0 8px var(--color-bulb-gold),
+    0 0 22px rgb(255 140 26 / 0.8);
+}
+[data-slot="countdown-segment"] {
+  padding: 0.85rem 0.15rem 0.75rem;
+}
+[data-slot="countdown-segment"] + [data-slot="countdown-segment"] {
+  border-color: rgb(255 194 26 / 0.14);
+}
+[data-slot="countdown-value"] {
+  font-family: var(--font-dots);
+  font-size: clamp(2.5rem, 11vw, 4.25rem);
+  font-weight: 900;
+  line-height: 1;
+  color: var(--color-bulb-gold);
+  text-shadow:
+    0 0 2px rgb(255 243 214 / 0.9),
+    0 0 8px var(--color-bulb-gold),
+    0 0 22px rgb(255 140 26 / 0.8);
+}
+[data-slot="countdown-unit"] {
+  margin-top: 0.5rem;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  color: rgb(255 246 224 / 0.75);
+}
+@media (min-width: 640px) {
+  [data-slot="countdown-segment"] { padding: 1.1rem 0.75rem 1rem; }
+}
+
+/* ---------------------------------------------------------------------------------------
+   8. Ticker (shared <Marquee>): a sign strip edged with small static bulbs.
+   ------------------------------------------------------------------------------------- */
+.ticker {
+  position: relative;
+  padding: 0.9rem 0;
+  background:
+    radial-gradient(circle, var(--color-bulb-red) 0 2.5px, transparent 3.5px) 0 4px / 24px 8px repeat-x,
+    radial-gradient(circle, var(--color-bulb-green) 0 2.5px, transparent 3.5px) 12px 4px / 24px 8px repeat-x,
+    radial-gradient(circle, var(--color-bulb-gold) 0 2.5px, transparent 3.5px) 0 calc(100% - 4px) / 24px 8px repeat-x,
+    radial-gradient(circle, var(--color-bulb-blue) 0 2.5px, transparent 3.5px) 12px calc(100% - 4px) / 24px 8px repeat-x,
+    #0b0e20;
+}
+.ticker [data-slot="marquee-track"] {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+  color: var(--color-primary);
+  text-shadow: 0 0 10px rgb(255 194 26 / 0.6);
+}
+
+/* The footer hangs under one more row of small static bulbs. */
+[data-slot="site-footer"] {
+  background:
+    radial-gradient(circle, var(--color-bulb-red) 0 2.5px, transparent 3.5px) 0 0 / 48px 8px repeat-x,
+    radial-gradient(circle, var(--color-bulb-green) 0 2.5px, transparent 3.5px) 12px 0 / 48px 8px repeat-x,
+    radial-gradient(circle, var(--color-bulb-gold) 0 2.5px, transparent 3.5px) 24px 0 / 48px 8px repeat-x,
+    radial-gradient(circle, var(--color-bulb-blue) 0 2.5px, transparent 3.5px) 36px 0 / 48px 8px repeat-x,
+    linear-gradient(rgb(11 14 32 / 0.9), rgb(5 6 13 / 0.9)) 0 8px / 100% 100% no-repeat;
+}
+
+/* ---------------------------------------------------------------------------------------
+   9. House cards.
+   ------------------------------------------------------------------------------------- */
+[data-slot="house-card"] {
+  background-color: var(--color-surface);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+[data-slot="house-card"]:hover { transform: translateY(-3px); }
+[data-slot="house-photo"]::after {
+  /* Vignette so the number badge and a bright photo edge never fight. */
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgb(5 6 13 / 0.45) 0%, rgb(5 6 13 / 0) 30%, rgb(5 6 13 / 0) 70%, rgb(5 6 13 / 0.55) 100%);
+}
+[data-slot="house-number"] {
+  position: absolute;
+  top: 0.6rem;
+  left: 0.6rem;
+  z-index: 1;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem 0.35rem;
+  background: rgb(5 6 13 / 0.82);
+  box-shadow: inset 0 0 0 1px rgb(255 194 26 / 0.5), 0 0 16px -2px rgb(255 194 26 / 0.6);
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  color: var(--color-fg);
+}
+[data-slot="house-number"] b {
+  font-family: var(--font-dots);
+  font-size: 1.35rem;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--color-bulb-gold);
+  text-shadow: 0 0 6px var(--color-bulb-gold);
+}
+[data-slot="house-title"] {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  line-height: 1.15;
+  color: var(--color-fg);
+  text-shadow: 0 0 14px rgb(255 194 26 / 0.35);
+  overflow-wrap: anywhere;
+}
+[data-slot="house-card"][data-state="lit"] [data-slot="house-title"] {
+  --bulb: var(--color-bulb-gold);
+  text-shadow:
+    0 0 6px var(--bulb),
+    0 0 18px var(--bulb);
+}
+[data-slot="house-photo-fallback"] {
+  background:
+    radial-gradient(circle at 50% 55%, rgb(255 194 26 / 0.18) 0%, rgb(255 194 26 / 0) 55%),
+    var(--color-sunken);
+}
+
+/* ---------------------------------------------------------------------------------------
+   10. Phone sign-in (shared <PhoneAuthDialog> / <Dialog>).
+   ------------------------------------------------------------------------------------- */
+[data-slot="dialog-backdrop"] {
+  background-color: rgb(2 3 8 / 0.78);
+}
+[data-slot="dialog-panel"] {
+  --frame-w: 18px;
+  border: var(--frame-w) solid transparent;
+  border-image: var(--bulb-frame-0) 24 / var(--frame-w) round;
+  background-clip: padding-box;
+  padding: 1.5rem 1.25rem;
+  box-shadow: 0 0 80px -10px rgb(255 194 26 / 0.55);
+}
+@media (min-width: 640px) {
+  [data-slot="dialog-panel"] { --frame-w: 22px; padding: 2rem; }
+}
+[data-slot="auth-eyebrow"] {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  color: var(--color-primary);
+}
+[data-slot="auth-title"] {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.75rem;
+  line-height: 1.1;
+  text-shadow: 0 0 18px rgb(255 45 61 / 0.75);
+}
+[data-slot="auth-help"] { color: rgb(255 246 224 / 0.75); }
+[data-slot="auth-notice"] { color: var(--color-bulb-green); }
+[data-slot="auth-phone-input"],
+[data-slot="auth-code-input"] {
+  min-height: 52px;
+  border-color: rgb(255 246 224 / 0.3);
+}
+[data-slot="auth-phone-input"]::placeholder,
+[data-slot="auth-code-input"]::placeholder {
+  color: rgb(255 246 224 / 0.5);
+}
+[data-slot="auth-phone-input"]:focus,
+[data-slot="auth-code-input"]:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary), 0 0 20px -4px rgb(255 194 26 / 0.7);
+}
+[data-slot="auth-code-input"] {
+  font-family: var(--font-dots);
+  font-weight: 900;
+  color: var(--color-bulb-gold);
+}
+[data-slot="auth-submit"] {
+  min-height: 52px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--color-primary-fg);
+  background: radial-gradient(130% 160% at 50% 0%, #ffe58f 0%, var(--color-primary) 52%, #e89a00 100%);
+  box-shadow: inset 0 0 0 2px rgb(255 243 214 / 0.45), 0 0 22px -4px rgb(255 194 26 / 0.9);
+}
+[data-slot="auth-submit"]:hover {
+  background: radial-gradient(130% 160% at 50% 0%, #fff0bf 0%, var(--color-primary) 60%, #e89a00 100%);
+}
+[data-slot="auth-change-number"] {
+  min-height: 44px;
+  color: rgb(255 246 224 / 0.75);
+}
+[data-slot="auth-error"] {
+  background: rgb(255 45 61 / 0.12);
+  box-shadow: inset 0 0 0 1px rgb(255 45 61 / 0.45);
+}
+
+/* ---------------------------------------------------------------------------------------
+   11. Toast (shared <Toaster>): a lit gold pill above the home indicator.
+   ------------------------------------------------------------------------------------- */
+[data-slot="toast"] {
+  bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  max-width: calc(100vw - 2rem);
+  width: max-content;
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  color: var(--color-primary-fg);
+  background: var(--color-primary);
+  box-shadow: 0 0 28px -2px rgb(255 194 26 / 0.9);
+}
+
+/* ---------------------------------------------------------------------------------------
+   12. Motion off. Reduced motion (system) or the header switch (data-motion="off")
+       stop every animation and transition. Because every base style is "lit", the
+       page stays fully lit and simply holds still.
+   ------------------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+:root[data-motion="off"] *,
+:root[data-motion="off"] *::before,
+:root[data-motion="off"] *::after {
+  animation: none !important;
+  transition: none !important;
+}

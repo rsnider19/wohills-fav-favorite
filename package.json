@@ -9,9 +9,11 @@
   ],
   "scripts": {
     "dev": "npm run dev -w apps/parade --",
+    "dev:lights": "npm run dev -w apps/lights --",
     "build": "npm run build --workspaces --if-present",
     "lint": "eslint .",
     "preview": "npm run preview -w apps/parade --",
+    "preview:lights": "npm run preview -w apps/lights --",
     "set-window": "npm run set-window -w apps/parade",
     "contest-admin": "node tools/contest-admin.mjs",
     "seed-floats": "npm run seed-floats -w apps/parade",
