@@ -118,6 +118,13 @@ public = true
 file_size_limit = "10MiB"
 allowed_mime_types = ["image/png", "image/jpeg", "image/webp", "image/heic"]
 
+# Lights house photos; public so houses.photo_url can be a public URL.
+# Policies and the hosted bucket come from 20261113000100_lights_storage.sql.
+[storage.buckets.houses]
+public = true
+file_size_limit = "10MiB"
+allowed_mime_types = ["image/jpeg", "image/png", "image/webp"]
+
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]
 enabled = false
