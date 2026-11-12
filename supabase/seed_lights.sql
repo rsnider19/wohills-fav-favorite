@@ -11,6 +11,17 @@
 --
 -- Photos are picsum.photos placeholders (they need network access).
 
+-- Refuse to run anywhere but a freshly reset local database (e.g. a stray
+-- `db push --include-seed` against the live project): real neighbors' phones
+-- are never in the fictional 555 range the local test accounts use.
+do $$
+begin
+  if exists (select 1 from auth.users where coalesce(phone, '') !~ '^1555') then
+    raise exception 'seed_lights.sql is local-only: auth.users has real accounts, refusing to seed';
+  end if;
+end;
+$$;
+
 -- Windows relative to the reset time, so the local site starts in the
 -- "submissions open, voting opens in a week" phase. Use
 -- `npm run contest-admin -- --contest lights` to move between phases.
