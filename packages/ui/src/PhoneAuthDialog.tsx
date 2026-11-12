@@ -87,9 +87,10 @@ export function PhoneAuthDialog({ onSuccess, onCancel, notice, labels, className
       </div>
 
       {step === 'phone' ? (
-        <form onSubmit={sendCode} className="space-y-4">
+        <form data-slot="auth-form" onSubmit={sendCode} className="space-y-4">
           <input
             data-slot="auth-phone-input"
+            aria-label={l.phoneInputLabel}
             type="tel"
             autoComplete="tel"
             inputMode="tel"
@@ -109,9 +110,10 @@ export function PhoneAuthDialog({ onSuccess, onCancel, notice, labels, className
           </button>
         </form>
       ) : (
-        <form onSubmit={verifyCode} className="space-y-4">
+        <form data-slot="auth-form" onSubmit={verifyCode} className="space-y-4">
           <input
             data-slot="auth-code-input"
+            aria-label={l.codeInputLabel}
             ref={codeRef}
             type="text"
             autoComplete="one-time-code"
@@ -141,7 +143,7 @@ export function PhoneAuthDialog({ onSuccess, onCancel, notice, labels, className
       )}
 
       {error && (
-        <p data-slot="auth-error" className="mt-4 rounded-lg bg-primary/10 px-3 py-2 text-sm text-danger">
+        <p data-slot="auth-error" role="alert" className="mt-4 rounded-lg bg-primary/10 px-3 py-2 text-sm text-danger">
           {error}
         </p>
       )}

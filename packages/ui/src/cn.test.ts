@@ -7,6 +7,8 @@ it('lets a later token utility override an earlier one', () => {
   expect(cn('bg-surface text-fg', 'bg-primary')).toBe('text-fg bg-primary')
   expect(cn('bg-scrim/50', 'bg-fg/70')).toBe('bg-fg/70')
   expect(cn('shadow-card', 'shadow-selected')).toBe('shadow-selected')
+  expect(cn('rounded-field px-4', 'rounded-full')).toBe('px-4 rounded-full')
+  expect(cn('hover:shadow-card-hover', 'hover:shadow-none')).toBe('hover:shadow-none')
 })
 
 it('keeps utilities from different groups', () => {

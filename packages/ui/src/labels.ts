@@ -7,11 +7,15 @@ export interface PhoneAuthLabels {
   phoneTitle: string
   phoneHelp: string
   phonePlaceholder: string
+  /** Accessible name of the phone field (it has no visible label). */
+  phoneInputLabel: string
   send: string
   sending: string
   codeEyebrow: string
   codeTitle: string
   codeHelp: (phoneE164: string) => string
+  /** Accessible name of the code field. */
+  codeInputLabel: string
   verify: string
   verifying: string
   changeNumber: string
@@ -25,11 +29,13 @@ export const DEFAULT_PHONE_AUTH_LABELS: PhoneAuthLabels = {
   phoneTitle: 'Verify your phone',
   phoneHelp: 'We text you a 6-digit code. Your number is only used to verify you.',
   phonePlaceholder: '(555) 555-0100',
+  phoneInputLabel: 'Phone number',
   send: 'Text me a code',
   sending: 'Sending…',
   codeEyebrow: 'Check your texts',
   codeTitle: 'Enter your code',
   codeHelp: (phone) => `We sent a 6-digit code to ${phone}.`,
+  codeInputLabel: '6-digit code',
   verify: 'Verify',
   verifying: 'Verifying…',
   changeNumber: 'Use a different number',

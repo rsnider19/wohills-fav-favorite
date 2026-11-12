@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PostgrestError, Session } from '@supabase/supabase-js'
 import { useSupabase } from './useSupabase'
 
@@ -20,16 +20,22 @@ export function useMyVote(
   const userId = session?.user.id ?? null
   // Tagged with the user it belongs to, so a sign-out or account switch never shows a stale pick.
   const [fetched, setFetched] = useState<{ userId: string; id: string | null } | null>(null)
+  // Bumped by every successful vote(), so a read that was already in flight
+  // can't put the previous pick back on screen.
+  const votes = useRef(0)
 
   useEffect(() => {
     if (!userId || paused) return
     let cancelled = false
+    const votesAtStart = votes.current
     client
       .from(table)
       .select(column)
       .maybeSingle<Record<string, string | null>>()
-      .then(({ data }) => {
-        if (!cancelled) setFetched({ userId, id: data?.[column] ?? null })
+      .then(({ data, error }) => {
+        // On an error keep what we have (e.g. the vote just cast) instead of showing "no vote".
+        if (cancelled || error || votes.current !== votesAtStart) return
+        setFetched({ userId, id: data?.[column] ?? null })
       })
     return () => {
       cancelled = true
@@ -43,7 +49,10 @@ export function useMyVote(
       const { error } = await client
         .from(table)
         .upsert({ user_id: userId, [column]: targetId }, { onConflict: 'user_id' })
-      if (!error) setFetched({ userId, id: targetId })
+      if (!error) {
+        votes.current += 1
+        setFetched({ userId, id: targetId })
+      }
       return { error }
     },
     [client, table, column, userId],

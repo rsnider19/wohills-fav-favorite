@@ -9,7 +9,8 @@ export function useSession(): { session: Session | null; ready: boolean } {
   useEffect(() => {
     let cancelled = false
     client.auth.getSession().then(({ data }) => {
-      if (!cancelled) setState({ session: data.session, ready: true })
+      // An auth event that already arrived is newer than this read; don't overwrite it.
+      if (!cancelled) setState((s) => (s.ready ? s : { session: data.session, ready: true }))
     })
     const { data: sub } = client.auth.onAuthStateChange((_event, session) => setState({ session, ready: true }))
     return () => {

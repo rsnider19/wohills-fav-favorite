@@ -44,7 +44,7 @@ export function Leaderboard({
           {title}
         </h2>
 
-        <ol className="divide-y divide-fg/10">
+        <ol data-slot="leaderboard-list" className="divide-y divide-fg/10">
           {rows.map((r, i) => (
             <li key={r.id} data-slot="leaderboard-row" data-rank={i + 1} className="flex items-center gap-5 py-5">
               <span
@@ -67,7 +67,11 @@ export function Leaderboard({
                   <span data-slot="leaderboard-entry-title" className="truncate font-display text-xl font-semibold text-fg">
                     {r.title}
                   </span>
-                  {r.icon !== undefined && <span className="shrink-0 text-lg leading-none">{r.icon}</span>}
+                  {r.icon !== undefined && (
+                    <span data-slot="leaderboard-icon" className="shrink-0 text-lg leading-none">
+                      {r.icon}
+                    </span>
+                  )}
                   {i === 0 && (
                     <span
                       data-slot="leaderboard-winner"
@@ -94,7 +98,9 @@ export function Leaderboard({
                 <div data-slot="leaderboard-count" className={cn('font-display text-2xl font-semibold', i === 0 ? 'text-primary' : 'text-fg')}>
                   {r.count}
                 </div>
-                <div className="text-[10px] font-semibold tracking-[0.2em] text-fg/40 uppercase">{countLabel}</div>
+                <div data-slot="leaderboard-count-label" className="text-[10px] font-semibold tracking-[0.2em] text-fg/40 uppercase">
+                  {countLabel}
+                </div>
               </div>
             </li>
           ))}

@@ -1,5 +1,4 @@
 import { useRef, type ReactNode } from 'react'
-import { cn } from './cn'
 
 export interface PhotoPickerProps {
   onFile: (file: File) => void
@@ -46,7 +45,7 @@ export function PhotoPicker({
         data-slot="photo-picker"
         disabled={busy || disabled}
         onClick={() => inputRef.current?.click()}
-        className={cn(className)}
+        className={className}
       >
         {busy ? busyLabel : children}
       </button>

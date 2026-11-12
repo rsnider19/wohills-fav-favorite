@@ -2,7 +2,9 @@
 -- flipped; the client then showed only the top 3. Anyone calling the RPC
 -- directly could read the full standings. Limit it to the top 3 in SQL.
 -- Same signature and ordering as 20260612000000_floats.sql, so
--- `create or replace` keeps the existing grants.
+-- `create or replace` keeps the existing grants. The body is fully qualified,
+-- so search_path is pinned to empty: a security definer function then can't
+-- pick up a same-named object from any schema a caller might write to.
 create or replace function public.get_results()
 returns table (
   entry_id uuid,
@@ -15,7 +17,7 @@ returns table (
 )
 language sql
 security definer
-set search_path = public
+set search_path = ''
 stable
 as $$
   select e.id, e.entry_number, e.theme, e.street, e.emoji, e.image_url,

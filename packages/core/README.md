@@ -37,7 +37,7 @@ database (not the client) enforces every fairness rule.
 | `settings` | one row: `voting_open boolean`, `results_visible boolean`, `voting_opens_at timestamptz null`, `voting_closes_at timestamptz null`, plus contest-specific columns | readable by `anon`/`authenticated`; writable only with the service role | `useContestSettings`, `votingWindow` |
 | `voting_is_open()` | `boolean`: kill switch AND `now()` inside the window (database clock) | used inside the `votes` RLS policies | (RLS) |
 | `votes` | `user_id uuid primary key references auth.users`, `<target>_id uuid` (`entry_id` / `house_id`), `created_at`, `updated_at` | select own row only; insert/update own row only while `voting_is_open()`; the PK makes a second vote impossible (upsert changes it) | `useMyVote` |
-| `get_results()` | `security definer`; returns no rows unless `results_visible`; at most **3** rows ordered by vote count desc, then a stable tiebreak | the only way to read tallies | `useResults` |
+| `get_results()` | `security definer` with `set search_path = ''` (fully qualified body); returns no rows unless `results_visible`; at most **3** rows ordered by vote count desc, then a stable tiebreak | the only way to read tallies | `useResults` |
 | `public.is_admin()` | `boolean`: JWT phone = `public.admin_config.admin_phone` | shared by every contest | `useIsAdmin` |
 
 Client clocks and countdowns are display only. Parade: `public` schema, target
