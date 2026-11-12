@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest'
 // Read from disk: vitest replaces imported CSS (even ?raw) with an empty string.
 const read = (file: string) => readFileSync(new URL(file, import.meta.url), 'utf8')
 const indexCss = read('./index.css')
-const effectsCss = read('./effects.css')
+// The map's CSS (M5) joins the motion checks: anything animated on the map follows the same rules.
+const effectsCss = read('./effects.css') + '\n' + read('./map/map.css')
 
 // Design guardrails for the lights theme. If a token or effect changes, these fail
 // before anyone has to eyeball the screenshots.
@@ -53,6 +54,9 @@ const PAIRS: [string, RGB, RGB, number][] = [
   ['error text on a card', t('danger'), t('surface'), 4.5],
   ['error text in the error box', t('danger'), over(t('bulb-red'), 0.12, t('surface')), 4.5],
   ['green notice on a card', t('accent'), t('surface'), 4.5],
+  ['typed text in a field', t('fg'), t('field'), 4.5],
+  ['note text (fg/85) on a card', over(t('fg'), 0.85, t('surface')), t('surface'), 4.5],
+  ['map attribution (fg/80) on its dark plate', over(t('fg'), 0.8, over(t('bg'), 0.78, hex('#ffffff'))), over(t('bg'), 0.78, hex('#ffffff')), 4.5],
   ['sign letter: red', t('bulb-red'), t('bg'), 3],
   ['sign letter: green', t('bulb-green'), t('bg'), 3],
   ['sign letter: gold', t('bulb-gold'), t('bg'), 3],

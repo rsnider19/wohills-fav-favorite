@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { formatPhone } from '@wohills/core'
 import { FOOTER } from '../copy'
 
@@ -6,9 +7,11 @@ interface Props {
   phone: string | null
   isAdmin: boolean
   onSignOut: () => void
+  /** Next to the Admin chip: the link to the moderation queue (M5). */
+  adminLink?: ReactNode
 }
 
-export function Footer({ phone, isAdmin, onSignOut }: Props) {
+export function Footer({ phone, isAdmin, onSignOut, adminLink }: Props) {
   return (
     <footer data-slot="site-footer" className="mt-6">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-10 text-sm text-fg/75 sm:flex-row sm:items-center sm:justify-between sm:px-6">
@@ -28,7 +31,7 @@ export function Footer({ phone, isAdmin, onSignOut }: Props) {
                 {FOOTER.admin}
               </span>
             )}
-            {/* M5 adds the admin's moderation link here. */}
+            {isAdmin && adminLink}
             <span>{FOOTER.signedInAs(formatPhone(phone))}</span>
             <button
               type="button"

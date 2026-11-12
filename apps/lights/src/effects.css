@@ -606,3 +606,341 @@ body::after {
 [data-slot="hero"][data-offscreen] *::after {
   animation-play-state: paused;
 }
+
+/* ---------------------------------------------------------------------------------------
+   13. Entering a house, "My entry" and moderation (M5). Nothing here animates: forms
+       hold still while people type. (Transitions only; the motion kill covers them.)
+   ------------------------------------------------------------------------------------- */
+/* A panel around a form keeps a steady lit frame: no chase on hover or focus. */
+.bulb-frame[data-static] {
+  animation: none;
+  box-shadow: var(--shadow-card);
+}
+[data-slot="back-link"] {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(255 246 224 / 0.75);
+  text-decoration: none;
+}
+[data-slot="back-link"]:hover { color: var(--color-primary); }
+.header-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 1rem;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--color-fg);
+  text-decoration: none;
+  white-space: nowrap;
+  background: rgb(255 246 224 / 0.06);
+  box-shadow: inset 0 0 0 1px rgb(255 194 26 / 0.55), 0 0 16px -6px rgb(255 194 26 / 0.8);
+}
+[data-slot="step-title"] {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1.15;
+  color: var(--color-fg);
+  text-shadow: 0 0 14px rgb(255 194 26 / 0.35);
+}
+
+/* Steps: three bulbs on a wire. Done and current are lit gold; the rest are dark glass. */
+[data-slot="step-bulbs"] {
+  display: flex;
+  gap: 1.1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-slot="step-bulbs"] li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(255 246 224 / 0.75);
+}
+[data-slot="step-bulbs"] li[data-state="current"] { color: var(--color-primary); }
+[data-slot="step-bulb"] {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #2a2f4d;
+}
+[data-slot="step-bulbs"] li:is([data-state="done"], [data-state="current"]) [data-slot="step-bulb"] {
+  background: var(--color-bulb-gold);
+  box-shadow: 0 0 6px var(--color-bulb-gold), 0 0 16px rgb(255 194 26 / 0.7);
+}
+
+/* Fields: the sign-in inputs' look (52px, gold focus glow). 17px text so iOS doesn't zoom. */
+[data-slot="field-label"] {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-fg);
+}
+[data-slot="field"] {
+  width: 100%;
+  min-height: 52px;
+  border: 1px solid rgb(255 246 224 / 0.3);
+  border-radius: var(--radius-field);
+  padding: 0 1rem;
+  font-size: 1.0625rem;
+  color: var(--color-fg);
+  background: var(--color-field);
+  outline: none;
+}
+[data-slot="field"]::placeholder { color: rgb(255 246 224 / 0.5); }
+[data-slot="field"]:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary), 0 0 20px -4px rgb(255 194 26 / 0.7);
+}
+[data-slot="field"][aria-invalid="true"] {
+  border-color: var(--color-bulb-red);
+  box-shadow: 0 0 0 1px var(--color-bulb-red);
+}
+[data-slot="field-help"] {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: rgb(255 246 224 / 0.75);
+}
+
+/* One-line notes with a colored bulb. */
+[data-slot="note"] {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: rgb(255 246 224 / 0.85);
+}
+[data-slot="note"][data-tone="error"] { color: var(--color-danger); }
+[data-slot="note-dot"] {
+  --bulb: var(--color-bulb-gold);
+  width: 10px;
+  height: 10px;
+  flex: none;
+  margin-top: 0.45rem;
+  border-radius: 999px;
+  background: var(--bulb);
+  box-shadow: 0 0 6px var(--bulb), 0 0 12px var(--bulb);
+}
+[data-slot="note"][data-tone="ok"] [data-slot="note-dot"] { --bulb: var(--color-bulb-green); }
+[data-slot="note"][data-tone="error"] [data-slot="note-dot"] { --bulb: var(--color-bulb-red); }
+
+/* Lists with bulbs for bullets (rules) and numbered bulbs (what happens next). */
+:is([data-slot="rules"], [data-slot="next-steps"]) {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+:is([data-slot="rules"], [data-slot="next-steps"]) li {
+  position: relative;
+  padding-left: 2rem;
+  color: rgb(255 246 224 / 0.85);
+}
+[data-slot="rules"] li::before {
+  content: "";
+  position: absolute;
+  top: 0.45rem;
+  left: 0.3rem;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--color-bulb-gold);
+  box-shadow: 0 0 6px var(--color-bulb-gold);
+}
+[data-slot="next-steps"] li::before {
+  counter-increment: step;
+  content: counter(step);
+  position: absolute;
+  top: -0.1rem;
+  left: 0;
+  font-family: var(--font-dots);
+  font-size: 1.35rem;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--color-bulb-gold);
+  text-shadow: 0 0 6px var(--color-bulb-gold);
+}
+
+/* The photo well (an unlit bulb until there's a photo) and the map: a gold hairline,
+   not a second bulb frame inside the panel's. */
+:is([data-slot="photo-preview"], [data-slot="map-frame"]) {
+  box-shadow: inset 0 0 0 1px rgb(255 194 26 / 0.25);
+}
+[data-slot="photo-preview"][data-empty] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+[data-slot="photo-busy"] {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  text-align: center;
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+  color: var(--color-primary);
+  background: rgb(5 6 13 / 0.72);
+}
+
+/* The pin map: a gold C9 bulb fixed at the center, its tip on the spot. It lifts while
+   the map moves (a transition, not an animation), with a dot marking the exact point. */
+[data-slot="map-pin"] {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  filter: drop-shadow(0 0 6px rgb(255 194 26 / 0.9)) drop-shadow(0 0 16px rgb(255 140 26 / 0.6));
+  transition: transform 0.15s ease;
+}
+[data-slot="map-pin"][data-moving] { transform: translate(-50%, calc(-100% - 8px)); }
+[data-slot="map-pin-dot"] {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  width: 8px;
+  height: 8px;
+  pointer-events: none;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  background: #05060d;
+  box-shadow: 0 0 0 2px var(--color-bulb-gold);
+}
+[data-slot="pin-coords"] {
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: rgb(255 246 224 / 0.75);
+}
+/* New entries have no number yet: hide the card preview's "No. 0". */
+[data-slot="card-preview"][data-new] [data-slot="house-number"] { display: none; }
+
+/* Entry status: a pill like the phase badge; its bulb holds still. Pending and hidden
+   entries wear the unlit frame ("not lit up yet"). */
+[data-slot="status-pill"] {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  padding: 0 0.8rem;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: var(--color-fg);
+  background: rgb(255 246 224 / 0.06);
+  box-shadow: inset 0 0 0 1px rgb(255 246 224 / 0.18);
+  white-space: nowrap;
+}
+[data-slot="status-pill"] [data-slot="phase-dot"] { animation: none; }
+[data-slot="my-entry"]:is([data-status="pending"], [data-status="hidden"]) [data-slot="house-card"] {
+  border-image-source: var(--bulb-frame-off);
+  box-shadow: none;
+  animation: none;
+}
+
+/* Destructive buttons: a red ring, never a lit gold bulb. */
+.btn-ghost[data-tone="danger"] {
+  box-shadow: inset 0 0 0 2px rgb(255 45 61 / 0.7);
+}
+.btn-ghost[data-tone="danger"]:hover {
+  box-shadow: inset 0 0 0 2px var(--color-bulb-red), 0 0 24px -4px rgb(255 45 61 / 0.7);
+}
+/* Buttons in forms and dialogs keep their label on one line. */
+:is([data-slot="panel"], [data-slot="dialog-panel"]) :is(.btn-bulb, .btn-ghost) { white-space: nowrap; }
+[data-slot="text-button"]:disabled { opacity: 0.5; cursor: not-allowed; }
+[data-slot="text-button"] {
+  display: inline-flex;
+  white-space: nowrap;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+[data-slot="dialog-title"] {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  line-height: 1.1;
+  text-shadow: 0 0 18px rgb(255 45 61 / 0.75);
+}
+
+/* Moderation: status tabs and one card per entry. */
+[data-slot="segmented"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+[data-slot="segmented"] button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  padding: 0 1rem;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  color: var(--color-fg);
+  background: rgb(255 246 224 / 0.04);
+  box-shadow: inset 0 0 0 2px rgb(255 246 224 / 0.35);
+  cursor: pointer;
+}
+[data-slot="segmented"] button[data-state="on"] {
+  color: var(--color-primary-fg);
+  background: var(--color-primary);
+  box-shadow: 0 0 18px -2px rgb(255 194 26 / 0.9);
+}
+[data-slot="segmented-count"] {
+  font-family: var(--font-dots);
+  font-size: 1.05rem;
+  font-weight: 900;
+  line-height: 1;
+}
+[data-slot="admin-row"] {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px rgb(255 194 26 / 0.2);
+}
+@media (min-width: 640px) {
+  [data-slot="admin-row"] { grid-template-columns: 220px 1fr; }
+}
+[data-slot="admin-row"][aria-busy="true"] { opacity: 0.6; }
+[data-slot="admin-row"] [data-slot="house-number"] { position: static; }
+[data-slot="admin-photo"] {
+  display: block;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: var(--color-sunken);
+}
+[data-slot="admin-photo"] img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

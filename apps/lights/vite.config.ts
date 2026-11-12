@@ -7,5 +7,8 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: { port: 5174 },
+  // MapLibre's lazy chunk (the pin map) is ~1.07 MB minified (~290 KB gzip) and loads only on
+  // the pin step; the main bundle stays near 500 KB. Warn only above that.
+  build: { chunkSizeWarningLimit: 1200 },
   preview: { port: 4174 },
 })

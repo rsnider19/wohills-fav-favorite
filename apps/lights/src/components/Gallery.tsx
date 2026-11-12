@@ -15,6 +15,8 @@ interface Props {
   phase: Phase | null
   submissionsOpenAt: Date | null
   onRetry: () => void
+  /** Under the empty state's text (M5: "Enter your house" while entries are open). */
+  emptyAction?: ReactNode
   /** Next to the title (M6: the gallery ⇄ map toggle). */
   toolbar?: ReactNode
   /** Per-card props from later milestones (M6 navigate, M7 vote / lit / badge). */
@@ -22,7 +24,7 @@ interface Props {
 }
 
 /** The lineup: every approved house, shuffled per visit (?house=<number> pins one first). */
-export function Gallery({ houses, loading, phase, submissionsOpenAt, onRetry, toolbar, renderCard }: Props) {
+export function Gallery({ houses, loading, phase, submissionsOpenAt, onRetry, emptyAction, toolbar, renderCard }: Props) {
   const ordered = useShuffledOrder(houses ?? [], { getId: houseId, getPinKey: houseNumber, pinParam: 'house' })
   const failed = !loading && houses === undefined
 
@@ -77,7 +79,7 @@ export function Gallery({ houses, loading, phase, submissionsOpenAt, onRetry, to
             {GALLERY.emptyTitle}
           </p>
           <p className="mx-auto mt-4 max-w-[40ch] text-fg/75">{GALLERY.emptyBody(phase ?? 'before', submissionsOpenAt)}</p>
-          {/* M5 puts "Enter your house" here while submissions are open. */}
+          {emptyAction && <div className="mt-6">{emptyAction}</div>}
         </div>
       ) : (
         <ul className="grid list-none gap-6 p-0 sm:grid-cols-2 lg:grid-cols-3">

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { Phase } from '../lib/phase'
 import { MOTION_TOGGLE, PHASE_BADGE, PREVIEW_BADGE } from '../copy'
 
@@ -14,11 +15,13 @@ interface Props {
   preview: boolean
   motionOn: boolean
   onToggleMotion: () => void
+  /** Left of the pause switch: the "My entry" link once the visitor has one (M5). */
+  actions?: ReactNode
 }
 
 /** The top bar: where the contest is (left) and the twinkle pause switch (right).
  *  The hero's giant sign is the brand, so there is no second wordmark up here. */
-export function Header({ phase, preview, motionOn, onToggleMotion }: Props) {
+export function Header({ phase, preview, motionOn, onToggleMotion, actions }: Props) {
   return (
     <header
       data-slot="site-header"
@@ -33,7 +36,7 @@ export function Header({ phase, preview, motionOn, onToggleMotion }: Props) {
         )}
       </div>
       <div className="flex items-center gap-2">
-        {/* M5 adds "My entry" here once the visitor has one. */}
+        {actions}
         <button
           type="button"
           data-slot="motion-toggle"
