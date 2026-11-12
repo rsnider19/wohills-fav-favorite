@@ -23,7 +23,15 @@ async function toPinStep(page: import('@playwright/test').Page) {
   await page.getByRole('heading', { name: 'Snap your house' }).waitFor()
   await page.locator('input[type=file]:not([capture])').setInputFiles(await housePhoto(page))
   await page.getByRole('button', { name: 'Next' }).click()
-  await expect(page.getByRole('heading', { name: 'Pin your house' })).toBeVisible()
+  // Focus follows the step (the Next button that had it is gone).
+  await expect(page.getByRole('heading', { name: 'Pin your house' })).toBeFocused()
+}
+
+/** A JPEG with an EXIF block (camera GPS) spliced in after its start marker. */
+function withExif(file: { name: string; mimeType: string; buffer: Buffer }) {
+  const payload = Buffer.from('Exif\0\0GPSLatitude 40.12314 GPSLongitude -83.05157', 'latin1')
+  const app1 = Buffer.concat([Buffer.from([0xff, 0xe1, (payload.length + 2) >> 8, (payload.length + 2) & 0xff]), payload])
+  return { ...file, buffer: Buffer.concat([file.buffer.subarray(0, 2), app1, file.buffer.subarray(2)]) }
 }
 
 test('submit: sign in, photo, GPS pin, drag, name, send → pending', async ({ page, context }) => {
@@ -93,11 +101,15 @@ test('out of area: GPS across town and an address outside the fence are refused'
   await expect(page.locator('[data-slot="note"][data-tone="error"]').last()).toContainText('Use your location')
 })
 
-test('GPS denied: the address lookup drops the pin instead', async ({ page, context }) => {
+test('GPS denied: the address lookup drops the pin instead (and the photo goes up without EXIF)', async ({ page, context }) => {
   await signInAs(context, PHONE.fresh)
   await stubNetwork(page, { '7420 test dr': { lat: 40.1283, lng: -83.0466, inGeofence: true } })
   await page.goto('/enter')
-  await toPinStep(page)
+  await page.getByRole('heading', { name: 'Snap your house' }).waitFor()
+  const photo = withExif(await housePhoto(page))
+  expect(photo.buffer.includes('GPSLatitude')).toBe(true)
+  await page.locator('input[type=file]:not([capture])').setInputFiles(photo)
+  await page.getByRole('button', { name: 'Next' }).click()
 
   await page.getByRole('button', { name: 'Use my location' }).click()
   await expect(page.getByText('Location is off for this site')).toBeVisible()
@@ -107,7 +119,12 @@ test('GPS denied: the address lookup drops the pin instead', async ({ page, cont
   await page.getByRole('button', { name: 'Next' }).click()
   await page.getByRole('button', { name: 'Light it up' }).click()
   await expect(page.getByRole('heading', { name: "You're on the list!" })).toBeVisible()
-  expect(await entryOf(PHONE.fresh)).toMatchObject({ address: '7420 Test Dr', lat: 40.1283, lng: -83.0466, title: null })
+  const row = await entryOf(PHONE.fresh)
+  expect(row).toMatchObject({ address: '7420 Test Dr', lat: 40.1283, lng: -83.0466, title: null })
+  const uploaded = await (await page.request.get(row!.photo_url)).body()
+  expect(uploaded.subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]))
+  expect(uploaded.includes('Exif')).toBe(false)
+  expect(uploaded.includes('GPSLatitude')).toBe(false)
 })
 
 test('duplicate address: refused, nothing left behind', async ({ page, context }) => {
@@ -128,7 +145,17 @@ test('duplicate address: refused, nothing left behind', async ({ page, context }
   // The photo uploaded for the failed insert was removed again.
   expect(await photosOf(PHONE.other)).toEqual([])
   await page.getByRole('button', { name: 'Fix the address or pin' }).click()
-  await expect(page.getByRole('heading', { name: 'Pin your house' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Pin your house' })).toBeFocused()
+  // Back on the pin step, the map starts at the pin (not the overview), so nudging it moves
+  // the pin a little instead of jumping it to the middle of the neighborhood.
+  const coords = page.locator('[data-slot="pin-coords"]')
+  await expect(coords).toHaveAttribute('data-lat', String(CANDLEWOOD.latitude))
+  await page.locator('[data-slot="mini-map"] canvas').waitFor()
+  await page.waitForTimeout(1500)
+  await dragMap(page, -40, 0)
+  await expect(coords).not.toHaveAttribute('data-lng', String(CANDLEWOOD.longitude))
+  expect(Math.abs(Number(await coords.getAttribute('data-lat')) - CANDLEWOOD.latitude)).toBeLessThan(0.0005)
+  expect(Math.abs(Number(await coords.getAttribute('data-lng')) - CANDLEWOOD.longitude)).toBeLessThan(0.0005)
 })
 
 test('already entered: a phone with an entry gets "My entry", not the form', async ({ page, context }) => {
@@ -176,6 +203,30 @@ test('upload failure: the entry is kept and goes through on retry', async ({ pag
   expect(await entryOf(PHONE.fresh)).toMatchObject({ address: '7450 Test Dr', status: 'pending' })
 })
 
+test('lost answer: the insert went through but the response never came back', async ({ page, context }) => {
+  await signInAs(context, PHONE.fresh)
+  await stubNetwork(page, { '7470 test dr': { lat: 40.1283, lng: -83.0466, inGeofence: true } })
+  await page.goto('/enter')
+  await toPinStep(page)
+  await page.getByLabel('Street address').fill('7470 Test Dr')
+  await page.getByRole('button', { name: 'Find this address' }).click()
+  await expect(page.locator('[data-slot="pin-coords"]')).toBeVisible()
+  await page.getByRole('button', { name: 'Next' }).click()
+
+  // The insert reaches the database, then the connection drops before the answer.
+  await page.route('**/rest/v1/houses?*', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    await route.fetch()
+    await route.abort('internetdisconnected')
+  })
+  await page.getByRole('button', { name: 'Light it up' }).click()
+  // The form checks before blaming the network: the entry is there, so it's done.
+  await expect(page.getByRole('heading', { name: "You're on the list!" })).toBeVisible()
+  const row = await entryOf(PHONE.fresh)
+  expect(row).toMatchObject({ address: '7470 Test Dr', status: 'pending' })
+  expect(await photosOf(PHONE.fresh)).toEqual([row!.photo_url.split('/').pop()])
+})
+
 test('map offline: the step still works without the map', async ({ page, context }) => {
   await signInAs(context, PHONE.fresh)
   await stubNetwork(page, { '7460 test dr': { lat: 40.1283, lng: -83.0466, inGeofence: true } })
@@ -187,7 +238,27 @@ test('map offline: the step still works without the map', async ({ page, context
   await page.getByLabel('Street address').fill('7460 Test Dr')
   await page.getByRole('button', { name: 'Find this address' }).click()
   await expect(page.locator('[data-slot="pin-coords"]')).toHaveAttribute('data-lat', '40.1283')
+  await expect(page.locator('[data-slot="note"][data-tone="ok"]')).toHaveText('Pin is inside Worthington Hills.')
   await page.getByRole('button', { name: 'Next' }).click()
   await page.getByRole('button', { name: 'Light it up' }).click()
   await expect(page.getByRole('heading', { name: "You're on the list!" })).toBeVisible()
+})
+
+test('basemap offline: the map says it did not load, GPS still sets the pin', async ({ page, context }) => {
+  await signInAs(context, PHONE.fresh)
+  await context.grantPermissions(['geolocation'])
+  await context.setGeolocation(CANDLEWOOD)
+  await stubNetwork(page)
+  // The style can't be fetched (offline, or the basemap host is down); MapLibre itself loaded.
+  await page.route('https://basemaps.cartocdn.com/**', (route) => route.abort('internetdisconnected'))
+  await page.goto('/enter')
+  await toPinStep(page)
+  await expect(page.locator('[data-slot="mini-map"] [data-slot="map-fallback"]')).toHaveText(/The map didn't load\./)
+  await page.getByLabel('Street address').fill('1250 Candlewood Dr')
+  await page.getByRole('button', { name: 'Use my location' }).click()
+  await expect(page.locator('[data-slot="pin-coords"]')).toHaveAttribute('data-lat', String(CANDLEWOOD.latitude))
+  // No map to zoom or drag, so the hint doesn't ask for it.
+  await expect(page.locator('[data-slot="note"][data-tone="ok"]')).toHaveText('Pin is inside Worthington Hills.')
+  await page.getByRole('button', { name: 'Next' }).click()
+  await expect(page.getByRole('heading', { name: 'Name it & send it' })).toBeFocused()
 })

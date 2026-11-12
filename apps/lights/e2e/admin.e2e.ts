@@ -46,6 +46,21 @@ test('hide and put back: an approved entry leaves the lineup and returns', async
   await expect(page.locator('[data-slot="house-card"]', { hasText: 'Candy Cane Lane' })).toBeVisible()
 })
 
+test('a status change that fails moves the row back', async ({ page, context }) => {
+  await signInAs(context, PHONE.admin)
+  await stubNetwork(page)
+  await page.goto('/admin')
+  const row = () => page.locator('[data-slot="admin-row"]', { hasText: 'Waiting on the Admin' })
+  await expect(row()).toBeVisible()
+  await page.route('**/rest/v1/houses?*', (route) => (route.request().method() === 'PATCH' ? route.abort('internetdisconnected') : route.fallback()))
+  await row().getByRole('button', { name: 'Approve' }).click()
+  await expect(page.getByText("That didn't work. Refresh and try again.")).toBeVisible()
+  await expect(row()).toContainText('Waiting for approval')
+  await expect(page.getByRole('button', { name: /^Waiting/ })).toHaveAttribute('aria-pressed', 'true')
+  const { data } = await service().from('houses').select('status').eq('entry_number', 6).single()
+  expect(data).toEqual({ status: 'pending' })
+})
+
 test('edit: the admin renames an entry without changing its status', async ({ page, context }) => {
   await signInAs(context, PHONE.admin)
   await stubNetwork(page)

@@ -67,6 +67,9 @@ test('late entry: after voting opens the form warns that it locks at once', asyn
   await expect(page.getByText("Voting has already started, so once you send this entry you can't change or withdraw it.")).toBeVisible()
   await page.getByRole('button', { name: 'Light it up' }).click()
   await expect(page.getByRole('heading', { name: "You're on the list!" })).toBeVisible()
+  // The windows overlap: no "Voting opens Dec 8" once it already has.
+  await expect(page.getByText('Voting is already open, so neighbors can vote for it as soon as it lights up.')).toBeVisible()
+  await expect(page.getByText(/^Voting opens/)).toHaveCount(0)
   await page.getByRole('button', { name: 'See my entry' }).click()
   await expect(page.getByText('Voting has started, so your entry is locked')).toBeVisible()
 })
