@@ -42,6 +42,12 @@ Run `npm test` for the shared packages' unit tests (vitest). `config.toml` uses
 `[local_smtp]`, which Supabase CLI 3.x requires (2.122+ also accepts it). If your
 installed CLI is older, use `npx --yes supabase@3.1.0 start`.
 
+**Pulled a new migration and `supabase start` fails** with
+`supabase_rest_… unexpected status 503`? Your local database volume predates a schema
+the API now exposes (e.g. `lights`), so `start` restores the old data without running the
+new migrations. Run `supabase stop --no-backup` once, then `supabase start` (re-applies
+every migration and the seeds; local data only).
+
 Ports are set in `supabase/config.toml` in the 55xxx range to avoid colliding with
 other local Supabase projects (which default to 54xxx).
 
@@ -56,7 +62,10 @@ root one any more.
 These numbers are configured in `[auth.sms.test_otp]` in `supabase/config.toml`;
 the verification code is always **123456**:
 
-- (555) 555-0100 · (555) 555-0101 · (555) 555-0102
+- (555) 555-0100 · (555) 555-0101 · (555) 555-0102 · (555) 555-0103 · (555) 555-0104
+
+The lights seed (`supabase/seed_lights.sql`) gives 0101 a pending house and 0103 an
+approved one; 0100, 0102 and 0104 have no house.
 
 The Twilio credentials in `config.toml` are dummies — local phone auth never sends
 a real text.
@@ -110,8 +119,10 @@ SUPABASE_SERVICE_ROLE_KEY=<service-role key>   # local: `supabase status`; hoste
 npm run set-window
 ```
 
-The npm scripts run with `apps/parade` as their working directory, which is how they find
-`apps/parade/.env`. Run them through `npm run …`, not with `node` directly.
+`npm run set-window` runs `tools/contest-admin.mjs --contest parade`, which reads
+`apps/parade/.env` wherever you run it from. Only variables that are set are applied:
+`VOTING_OPENS_AT`, `VOTING_CLOSES_AT`, `VOTING_OPEN` and `RESULTS_VISIBLE` (`true`/`false`)
+and `ADMIN_PHONE`. Add `--show` to print the current settings, `--dry-run` to preview.
 
 Leave a bound empty for no restriction on that side. The site shows a live
 countdown to opening before the window and to closing during it; buttons disable
@@ -134,6 +145,23 @@ update public.settings set voting_open = false;     -- emergency kill switch (op
 
 The site polls settings every 30 seconds, so the reveal shows up on everyone's
 phone within half a minute.
+
+## Holiday lights backend
+
+The lights contest lives in the same Supabase project, in its own `lights` schema
+(`supabase/migrations/20261113*_lights_*.sql`): houses, votes, settings, the `houses`
+photo bucket and the `geocode` Edge Function. See `docs/milestones/M3.md` for the rules
+and the API.
+
+```sh
+npx --yes supabase@3.1.0 test db              # pgTAP: every lights fairness rule (local stack)
+npm run contest-admin -- --contest lights --show
+npm run contest-admin -- --contest lights     # apply SUBMISSIONS_*/VOTING_*/RESULTS_VISIBLE/GEOFENCE/ADMIN_PHONE
+```
+
+`contest-admin --contest lights` reads `apps/lights/.env` (or `--env-file <path>`); see the
+header of `tools/contest-admin.mjs` for every variable. Locally the seed opens submissions
+on `db reset` and schedules voting a week later.
 
 ## Production deployment
 
@@ -184,7 +212,6 @@ later move to Cloudflare Workers. They are not in use yet.
 apps/parade/                         the 4th of July parade site (Vite app)
   index.html  vite.config.ts  wrangler.jsonc  .env.example
   public/og.png                      social share image
-  scripts/set-voting-window.mjs      applies VOTING_*_AT / ADMIN_PHONE to the database
   scripts/seed-floats.mjs            placeholder float content (preview only)
   scripts/seed-float-images.mjs      placeholder float photos (preview only)
   src/App.tsx                        app shell, vote logic, settings polling
@@ -206,7 +233,16 @@ supabase/                            shared Supabase project (all contests)
                                      admin_config, is_admin(), photo-upload RLS
   migrations/20261112120000_parade_get_results_top3.sql
                                      get_results() returns the top 3 only
+  migrations/20261113000000_lights_schema.sql
+                                     lights schema: settings, houses, votes, RLS, get_results()
+  migrations/20261113000100_lights_storage.sql
+                                     houses photo bucket + storage RLS
+  functions/geocode/                 Census geocoder proxy (Edge Function) + unit tests
+  tests/database/                    pgTAP tests (`supabase test db`)
+  tests/lights-smoke.mjs             end-to-end API smoke test (local stack only)
   seed.sql                           parade floats (theme, street, photo)
+  seed_lights.sql                    local-only lights houses, test users and votes
+tools/contest-admin.mjs              applies contest settings / admin phone (`--contest parade|lights`)
 docs/                                plan and per-milestone specs
 package.json                         npm workspaces root (apps/*, packages/*)
 tsconfig.base.json                   shared TypeScript options

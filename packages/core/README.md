@@ -41,8 +41,10 @@ database (not the client) enforces every fairness rule.
 | `public.is_admin()` | `boolean`: JWT phone = `public.admin_config.admin_phone` | shared by every contest | `useIsAdmin` |
 
 Client clocks and countdowns are display only. Parade: `public` schema, target
-`entries` / `entry_id`. Lights (M3): `lights` schema, target `houses` / `house_id`, plus
-its own rules (only approved houses, no self-votes, submission window).
+`entries` / `entry_id`. Lights: `lights` schema, target `houses` / `house_id`, plus its own
+rules: votes only for `approved` houses and never your own; one house per phone;
+`submissions_are_open()` and the owner edit lock (`owner_edits_allowed()`, false once
+voting opens); `get_results()` also returns `rank`. Full API in `docs/milestones/M3.md`.
 
 ## Tests
 
