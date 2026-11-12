@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import {
   useContestSettings,
   useIsAdmin,
+  useMyVote,
   useNow,
+  useResults,
   useSecretTaps,
   useSession,
   useSupabase,
@@ -24,7 +26,7 @@ import { useMotion } from './lib/useMotion'
 import { onRouteClick, routeHref, useRoute, type Route } from './lib/route'
 import { geofence } from './lib/geo'
 import { useView } from './lib/view'
-import { AUTH_LABELS, ENTER, heroTagline, NAV, TICKER, TOASTS } from './copy'
+import { AUTH_LABELS, ENTER, heroTagline, houseName, NAV, PODIUM, TICKER, TOASTS, VOTE } from './copy'
 import { Header } from './components/Header'
 import { Hero } from './components/Hero'
 import { Gallery } from './components/Gallery'
@@ -35,6 +37,11 @@ import { MapView } from './components/MapView'
 import { prefetchMap } from './map/load'
 import { NavigateButton } from './components/NavigateButton'
 import { ViewToggle } from './components/ViewToggle'
+import { Ballot } from './components/Ballot'
+import { Podium } from './components/Podium'
+import { Note } from './components/Page'
+import { ballotState, countedPick, isNetworkError, pickWasHidden, voteProblem, type VoteFacts } from './lib/ballot'
+import { podiumRows, samplePodium, type LightsResult } from './lib/reveal'
 
 const toDate = (iso: string | null) => (iso ? new Date(iso) : null)
 
@@ -83,6 +90,93 @@ export default function App() {
   )
   const onSecretTap = useSecretTaps(() => setAuth({}))
 
+  // Votes (M7): the parade's pattern on the shared hooks. A vote chosen while signed out
+  // waits in `pendingVote` through the sign-in, and useMyVote holds its read meanwhile.
+  const [pendingVote, setPendingVote] = useState<House | null>(null)
+  const [savingId, setSavingId] = useState<string | null>(null)
+  const { myVote, vote } = useMyVote(session, { column: 'house_id', paused: pendingVote !== null })
+  // Real results only once the database has revealed them; get_results() returns nothing
+  // before that, even for the admin (M3 lights_30). The admin's ?preview=results shows a
+  // sample podium instead, with no counts (lib/reveal.ts).
+  const { results, loading: resultsLoading } = useResults<LightsResult>(liveSettings.results_visible, { fn: 'get_results' })
+  const sample = previewing && preview === 'results' && !liveSettings.results_visible
+
+  // Callbacks handed to the memoized cards read the latest values from here, so they
+  // stay the same function between renders.
+  const latest = useRef({ session, myVote, votingOpen: status.votingOpen })
+  useEffect(() => {
+    latest.current = { session, myVote, votingOpen: status.votingOpen }
+  })
+
+  /** Cast or change the vote, wait for the database (no optimistic pick: a lit card must
+   *  mean a counted vote), then say what happened. */
+  const submitVote = useCallback(
+    async (house: House, previous: string | null) => {
+      setSavingId(house.id)
+      const { error } = await vote(house.id)
+      setSavingId(null)
+      const name = houseName(house)
+      if (!error) {
+        flash(previous !== null && previous !== house.id ? VOTE.toasts.changed(name) : VOTE.toasts.cast(name))
+        return
+      }
+      // RLS refuses with one code for every reason (M3 D26): ask what changed.
+      let facts: VoteFacts | null = null
+      if (!isNetworkError(error)) {
+        const [open, row] = await Promise.all([
+          supabase.rpc('voting_is_open'),
+          supabase.from('houses').select('id').eq('id', house.id).eq('status', 'approved').maybeSingle(),
+        ])
+        facts = {
+          votingOpen: open.error ? null : open.data === true,
+          approved: row.error ? null : row.data !== null,
+          own: house.submitted_by === latest.current.session?.user.id,
+        }
+      }
+      flash(VOTE.problems[voteProblem(error, facts)])
+      refreshSettings()
+      refreshHouses()
+    },
+    [vote, flash, supabase, refreshSettings, refreshHouses],
+  )
+
+  // Apply the vote that opened the sign-in, once the session arrives. The account may turn
+  // out to own that house, or to have voted for it already, so check before writing.
+  useEffect(() => {
+    if (!session || !pendingVote) return
+    const house = pendingVote
+    const own = house.submitted_by === session.user.id
+    ;(async () => {
+      if (own) flash(VOTE.problems.own)
+      else if (!latest.current.votingOpen) flash(VOTE.problems.closed)
+      else {
+        const { data } = await supabase.from('votes').select('house_id').maybeSingle<{ house_id: string }>()
+        const previous = data?.house_id ?? null
+        if (previous === house.id) flash(VOTE.toasts.already(houseName(house)))
+        else await submitVote(house, previous)
+      }
+      setPendingVote(null)
+    })()
+  }, [session, pendingVote, submitVote, supabase, flash])
+
+  const castVote = useCallback(
+    (house: House) => {
+      const { session, myVote, votingOpen } = latest.current
+      if (!votingOpen) return
+      if (!session) {
+        setPendingVote(house)
+        setAuth({ notice: VOTE.authNotice(houseName(house)) })
+        return
+      }
+      if (house.id === myVote) {
+        flash(VOTE.toasts.already(houseName(house)))
+        return
+      }
+      submitVote(house, myVote)
+    },
+    [flash, submitVote],
+  )
+
   // Re-fetch the moment the phase flips (a window boundary passed) instead of waiting
   // out the 30-second poll.
   const phase = settingsLoading ? null : status.phase
@@ -94,9 +188,11 @@ export default function App() {
     const t = setTimeout(() => {
       refreshSettings()
       refreshHouses()
+      // The reveal arrived while the page was open (the settings poll saw results_visible).
+      if (phase === 'results') flash(PODIUM.live)
     }, 0)
     return () => clearTimeout(t)
-  }, [phase, refreshSettings, refreshHouses])
+  }, [phase, refreshSettings, refreshHouses, flash])
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut()
@@ -111,6 +207,7 @@ export default function App() {
     submissionsCloseAt: toDate(settings.submissions_close_at),
     votingOpensAt: toDate(settings.voting_opens_at),
     submissionsOpen: status.submissionsOpen,
+    votingPaused: status.votingPaused,
   })
 
   // "Enter your house" while entries are open and this visitor has none; "My entry" once they do.
@@ -133,21 +230,79 @@ export default function App() {
     () => geofence({ geofence_min_lat, geofence_max_lat, geofence_min_lng, geofence_max_lng }),
     [geofence_min_lat, geofence_max_lat, geofence_min_lng, geofence_max_lng],
   )
+  // Voting (M7). The vote that counts is the stored one while its house is still approved
+  // (M3 D11). Every value the cards depend on is a primitive or a stable callback, so the
+  // cards re-render when a vote, the window or the session changes, never on a clock tick.
+  const uid = session?.user.id ?? null
+  const pick = countedPick(myVote, houses)
+  const ballotPhase = settingsLoading ? null : status.phase
+  const { votingOpen, votingPaused } = status
+  const opensAt = settings.voting_opens_at
+  const ballotFor = useCallback(
+    (house: House) =>
+      ballotPhase === null
+        ? 'none'
+        : ballotState({ house, uid, pick, phase: ballotPhase, votingOpen, votingPaused }),
+    [ballotPhase, uid, pick, votingOpen, votingPaused],
+  )
+  const renderBallot = useCallback(
+    (house: House) => {
+      const state = ballotFor(house)
+      if (state === 'none') return null
+      const saving = savingId === null ? null : savingId === house.id ? 'this' : 'other'
+      return <Ballot house={house} state={state} votingOpen={votingOpen} saving={saving} opensAt={opensAt} onVote={castVote} />
+    },
+    [ballotFor, savingId, votingOpen, opensAt, castVote],
+  )
+
+  // After the reveal: the podium, and a ribbon on each winner's card in the lineup.
+  const podium = sample ? samplePodium(houses ?? []) : podiumRows(results, houses)
+  // Keyed by a string: useResults hands out a fresh empty list while it loads, and the
+  // cards must not re-render every second for that.
+  const rankKey = status.phase === 'results' ? podium.map((r) => `${r.id}=${r.rank}`).join(',') : ''
+  const ranks = useMemo(
+    () => new Map(rankKey ? rankKey.split(',').map((p) => [p.split('=')[0], Number(p.split('=')[1])] as const) : []),
+    [rankKey],
+  )
+
   const renderCard = useCallback(
-    (house: House) => ({
-      actions: (
-        <span className="ml-auto">
-          <NavigateButton house={house} variant="icon" />
-        </span>
-      ),
-    }),
-    [],
+    (house: House) => {
+      const isPick = house.id === pick
+      const rank = ranks.get(house.id)
+      return {
+        actions: (
+          <>
+            {renderBallot(house)}
+            <span className="ml-auto">
+              <NavigateButton house={house} variant="icon" />
+            </span>
+          </>
+        ),
+        // Your pick goes fully lit (M4 D10) and stays lit after the close and the reveal.
+        lit: isPick,
+        badge:
+          isPick || rank ? (
+            <span data-slot="house-badges">
+              {rank && <span data-slot="house-badge" data-tone="rank">{PODIUM.rankBadge(rank)}</span>}
+              {isPick && <span data-slot="house-badge" data-tone="pick">{VOTE.pickBadge}</span>}
+            </span>
+          ) : undefined,
+      }
+    },
+    [renderBallot, pick, ranks],
   )
   const ownPending = myEntry?.status === 'pending'
   const renderMap = useCallback(
-    (ordered: House[]) => <MapView houses={ordered} box={box} ownPending={ownPending} onView={setView} onMessage={flash} />,
-    [box, ownPending, setView, flash],
+    (ordered: House[]) => (
+      <MapView houses={ordered} box={box} ownPending={ownPending} onView={setView} onMessage={flash} renderSheetActions={renderBallot} />
+    ),
+    [box, ownPending, setView, flash, renderBallot],
   )
+  // The house you voted for was hidden by the admin: say so above the lineup and the map.
+  const hiddenPick =
+    uid !== null && status.phase !== 'results' && pickWasHidden(myVote, houses) ? (
+      <Note tone="info">{status.votingOpen ? VOTE.hiddenPick.open : VOTE.hiddenPick.closed}</Note>
+    ) : null
 
   return (
     <>
@@ -156,6 +311,7 @@ export default function App() {
         <Header
           phase={phase}
           preview={previewing}
+          paused={status.votingPaused}
           motionOn={motionOn}
           onToggleMotion={toggleMotion}
           actions={
@@ -201,7 +357,18 @@ export default function App() {
               now={now}
               onSecretTap={onSecretTap}
               actions={heroActions}
-            />
+            >
+              {status.phase === 'results' && (
+                <Podium
+                  rows={podium}
+                  loading={sample ? housesLoading : resultsLoading}
+                  sample={sample}
+                  motionOn={motionOn}
+                  uid={uid}
+                  pick={pick}
+                />
+              )}
+            </Hero>
             <Marquee text={TICKER} className="ticker" />
             <Gallery
               houses={houses}
@@ -211,6 +378,7 @@ export default function App() {
               onRetry={refreshHouses}
               view={view}
               toolbar={houses && houses.length > 0 ? <ViewToggle view={view} onChange={setView} onPrefetch={prefetchMap} /> : null}
+              notice={hiddenPick}
               renderCard={renderCard}
               renderMap={renderMap}
               emptyAction={
@@ -241,9 +409,13 @@ export default function App() {
           notice={auth.notice}
           onSuccess={() => {
             setAuth(null)
-            flash(TOASTS.signedIn)
+            // A waiting vote announces itself (the toast after it goes in).
+            if (!pendingVote) flash(TOASTS.signedIn)
           }}
-          onCancel={() => setAuth(null)}
+          onCancel={() => {
+            setAuth(null)
+            setPendingVote(null)
+          }}
         />
       )}
       <Toaster message={toast} />

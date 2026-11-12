@@ -1,4 +1,4 @@
-import { memo, Suspense, useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
+import { memo, Suspense, useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { MAP } from '../copy'
 import type { Box } from '../lib/geo'
 import { parseHouse, replaceSearch, viewSearch, type View } from '../lib/view'
@@ -21,11 +21,13 @@ interface Props {
   onView: (view: View) => void
   /** Toast for the locate button's problems. */
   onMessage: (text: string) => void
+  /** The picked house's vote control in the sheet (M7). Pass a stable function. */
+  renderSheetActions?: (house: House) => ReactNode
 }
 
 /** The map view of the lineup: the framed map, the picked house's sheet (phones) or panel
  *  (desktop), and the fallback when the map can't load. ?house=<n> is the picked house. */
-export const MapView = memo(function MapView({ houses, box, ownPending, onView, onMessage }: Props) {
+export const MapView = memo(function MapView({ houses, box, ownPending, onView, onMessage, renderSheetActions }: Props) {
   const helpId = useId()
   const frame = useRef<HTMLDivElement>(null)
   const sheet = useRef<HTMLDivElement>(null)
@@ -154,7 +156,7 @@ export const MapView = memo(function MapView({ houses, box, ownPending, onView, 
         </div>
         {selected ? (
           <div ref={sheet} data-slot="house-sheet-slot">
-            <HouseSheet key={selected.id} house={selected} headingRef={heading} onClose={close} />
+            <HouseSheet key={selected.id} house={selected} headingRef={heading} onClose={close} actions={renderSheetActions?.(selected)} />
           </div>
         ) : (
           <div data-slot="map-panel">

@@ -36,6 +36,8 @@ export interface TaglineDates {
   submissionsCloseAt: Date | null
   votingOpensAt: Date | null
   submissionsOpen: boolean
+  /** Phase "closed" because the admin paused voting inside the window (M7). */
+  votingPaused?: boolean
 }
 
 export function heroTagline(phase: Phase, d: TaglineDates): string {
@@ -53,7 +55,9 @@ export function heroTagline(phase: Phase, d: TaglineDates): string {
         ? `Voting is live. Pick the brightest house in the Hills: one phone, one vote. Late entries are welcome through ${formatLastDay(d.submissionsCloseAt)}.`
         : 'Voting is live. Pick the brightest house in the Hills: one phone, one vote.'
     case 'closed':
-      return 'Voting is closed and the votes are in. The winners light up soon, so stay tuned.'
+      return d.votingPaused
+        ? 'Voting is paused for a moment. Your vote is safe; check back soon.'
+        : 'Voting is closed and the votes are in. The winners light up soon, so stay tuned.'
     case 'results':
       return 'The votes are counted. Here are the brightest houses in the Hills.'
   }
@@ -68,6 +72,8 @@ export const COUNTDOWN_LABEL: Record<CountdownKind, string> = {
 export const COUNTDOWN_UNITS = { days: 'Days', hours: 'Hrs', min: 'Min', sec: 'Sec' } as const
 
 export const HERO_CTA = 'See the houses'
+/** The hero's call to action after the reveal (M7): it jumps to the podium. */
+export const HERO_CTA_WINNERS = 'See the winners'
 
 /** The hero scoreboard when nothing is counting down. */
 export const SCOREBOARD: Record<Phase, { label: string; text: string }> = {
@@ -77,6 +83,9 @@ export const SCOREBOARD: Record<Phase, { label: string; text: string }> = {
   closed: { label: '★ Voting closed', text: 'Votes are in' },
   results: { label: '★ The reveal', text: 'And the winner is…' },
 }
+
+/** The badge and scoreboard while the admin has paused voting (phase "closed", M7). */
+export const PAUSED = { badge: 'Voting paused', label: '★ Voting paused', text: 'Back soon' }
 
 export const TICKER = '★ Holiday Lights ★ Worthington Hills ★ Brightest house wins ★ One phone, one vote '
 
@@ -441,4 +450,77 @@ export const MAP = {
     unavailable: "We couldn't find your location right now.",
     outside: "You're outside Worthington Hills, so the map stays on the neighborhood.",
   },
+}
+
+// ---------------------------------------------------------------------------------------
+// M7: voting and the reveal.
+// ---------------------------------------------------------------------------------------
+
+const shortDayFormat = new Intl.DateTimeFormat('en-US', {
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+  timeZone: 'America/New_York',
+})
+/** "Tue, Dec 8" (fits a vote button). */
+export const formatShortDay = (date: Date) => shortDayFormat.format(date)
+
+/** A house's name in toasts and notices: its title, else its address. */
+export const houseName = (house: { title: string | null; address: string }) => house.title ?? house.address
+
+export const VOTE = {
+  /** The vote button, one label per state (lib/ballot.ts). */
+  signIn: 'Sign in to vote',
+  vote: 'Vote for this house',
+  change: 'Switch my vote here',
+  pick: '★ Your pick',
+  own: 'Your house',
+  notYet: (opensAt: Date | null) => (opensAt ? `Voting opens ${formatShortDay(opensAt)}` : 'Voting opens soon'),
+  paused: 'Voting paused',
+  closed: 'Voting closed',
+  saving: 'Saving…',
+  /** The ribbon on the photo of the card you voted for. */
+  pickBadge: '★ Your pick',
+  /** Under the sign-in dialog's title when a vote is waiting for it. */
+  authNotice: (name: string) => `Your vote for ${name} goes in as soon as you verify.`,
+  toasts: {
+    cast: (name: string) => `Vote cast for ${name} ★`,
+    changed: (name: string) => `Vote switched to ${name} ★`,
+    already: (name: string) => `${name} is already your pick.`,
+  },
+  /** Why a vote didn't go in (lib/ballot.ts voteProblem). */
+  problems: {
+    closed: "Voting just closed, so your vote didn't go in.",
+    gone: "That house was just taken off the board, so your vote didn't go in. Pick another one.",
+    own: "That's your own house, so it can't get your vote. Pick another one!",
+    network: "Your vote didn't go in: the connection dropped. Check it and try again.",
+    unknown: "Your vote didn't go in. Refresh the page and try again.",
+  },
+  /** Above the lineup when the house you voted for was hidden by the admin (M3 D11). */
+  hiddenPick: {
+    open: "The house you voted for was taken off the board, so that vote doesn't count right now. Pick another house to make it count.",
+    closed: "The house you voted for was taken off the board, so that vote isn't counted.",
+  },
+}
+
+export const PODIUM = {
+  eyebrow: '★ The votes are counted',
+  title: 'The Winners',
+  sampleEyebrow: '★ Preview: sample podium',
+  /** Admin preview before the real reveal: no real counts or ranks exist yet. */
+  sampleNote: 'A sample podium from the first three houses. The real results stay hidden until the reveal.',
+  loading: 'Counting the votes…',
+  empty: 'No votes were cast, so there are no winners this year.',
+  place: (rank: number) => ['1st place', '2nd place', '3rd place'][rank - 1] ?? `${rank}th place`,
+  winner: 'Winner',
+  /** After the count (or "??" on the sample podium): "7 votes", "1 vote". */
+  votesUnit: (n: number | null) => (n === 1 ? 'vote' : 'votes'),
+  tied: 'Tied',
+  rule: 'Ranked by votes. Ties go to the house that entered first.',
+  skip: 'Skip',
+  replay: 'Replay the reveal',
+  /** The ribbon on a winner's card in the lineup after the reveal. */
+  rankBadge: (rank: number) => `★ ${['1st', '2nd', '3rd'][rank - 1] ?? `${rank}th`} place`,
+  /** Toast when the reveal arrives while the page is open. */
+  live: 'The winners are in! ★',
 }

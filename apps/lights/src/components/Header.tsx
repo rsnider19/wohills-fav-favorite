@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { Phase } from '../lib/phase'
-import { MOTION_TOGGLE, PHASE_BADGE, PREVIEW_BADGE } from '../copy'
+import { MOTION_TOGGLE, PAUSED, PHASE_BADGE, PREVIEW_BADGE } from '../copy'
 
 const DOT_COLOR: Record<Phase, string> = {
   before: 'gold',
@@ -13,6 +13,8 @@ const DOT_COLOR: Record<Phase, string> = {
 interface Props {
   phase: Phase | null
   preview: boolean
+  /** Voting is paused inside its window (phase "closed"): the badge says so (M7). */
+  paused?: boolean
   motionOn: boolean
   onToggleMotion: () => void
   /** Left of the pause switch: the "My entry" link once the visitor has one (M5). */
@@ -21,7 +23,7 @@ interface Props {
 
 /** The top bar: where the contest is (left) and the twinkle pause switch (right).
  *  The hero's giant sign is the brand, so there is no second wordmark up here. */
-export function Header({ phase, preview, motionOn, onToggleMotion, actions }: Props) {
+export function Header({ phase, preview, paused = false, motionOn, onToggleMotion, actions }: Props) {
   return (
     <header
       data-slot="site-header"
@@ -31,7 +33,7 @@ export function Header({ phase, preview, motionOn, onToggleMotion, actions }: Pr
         {phase && (
           <span data-slot="phase-badge" data-preview={preview || undefined}>
             <span data-slot="phase-dot" data-bulb={DOT_COLOR[phase]} aria-hidden="true" />
-            {preview ? PREVIEW_BADGE(phase) : PHASE_BADGE[phase]}
+            {preview ? PREVIEW_BADGE(phase) : paused ? PAUSED.badge : PHASE_BADGE[phase]}
           </span>
         )}
       </div>
