@@ -3,7 +3,7 @@
 // submission flow when device GPS is denied (plan §4).
 //
 //   POST /functions/v1/geocode
-//   Authorization: Bearer <signed-in user's access token>
+//   Authorization: Bearer <signed-in user's access token> (phone accounts only)
 //   { "address": "1221 Candlewood Dr" }
 //
 //   200 { "match": { "lat", "lng", "matchedAddress" }, "inGeofence": true }
@@ -14,6 +14,7 @@
 //   429 { "error": "rate_limited" }            (Retry-After header)
 //   502 { "error": "geocoder_unavailable" }    (Census down, slow or malformed)
 //   500 { "error": "geofence_unavailable" }    (lights.settings unreadable)
+//   500 { "error": "internal_error" }          (anything else; details in the log)
 //
 // The database re-checks the geofence on insert (RLS); this check is for UX.
 // verify_jwt is off (config.toml) and the caller is verified here against
@@ -54,7 +55,11 @@ function json(status: number, body: unknown, extra: Record<string, string> = {})
   })
 }
 
-/** The signed-in user's id, or null. Asks GoTrue, so the token is really verified. */
+/**
+ * The signed-in, phone-verified user's id, or null. Asks GoTrue, so the token
+ * is really verified. Email or anonymous accounts have no phone and are
+ * refused, as they are by the lights RLS (lights.caller_has_phone()).
+ */
 async function userIdFrom(req: Request): Promise<string | null> {
   const auth = req.headers.get('Authorization') ?? ''
   if (!auth.startsWith('Bearer ')) return null
@@ -63,7 +68,8 @@ async function userIdFrom(req: Request): Promise<string | null> {
   })
   if (!res.ok) return null
   const user = await res.json().catch(() => null)
-  return typeof user?.id === 'string' ? user.id : null
+  const hasPhone = typeof user?.phone === 'string' && user.phone !== '' && user.is_anonymous !== true
+  return typeof user?.id === 'string' && hasPhone ? user.id : null
 }
 
 async function loadGeofence() {
@@ -77,6 +83,18 @@ async function loadGeofence() {
 }
 
 Deno.serve(async (req) => {
+  // A network error talking to GoTrue or PostgREST must still answer with JSON
+  // and CORS headers (an unhandled throw gives the browser an opaque 500) and
+  // must not echo internals; details go to the function log.
+  try {
+    return await handle(req)
+  } catch (error) {
+    console.error('geocode: unexpected error', error)
+    return json(500, { error: 'internal_error' })
+  }
+})
+
+async function handle(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS })
   if (req.method !== 'POST') return json(405, { error: 'method_not_allowed' })
 
@@ -119,4 +137,4 @@ Deno.serve(async (req) => {
   }
   if (!match) return json(404, { error: 'no_match' })
   return json(200, { match, inGeofence: inGeofence(match, box) })
-})
+}
