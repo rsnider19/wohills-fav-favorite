@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
-    "set-window": "node scripts/set-voting-window.mjs",
+    "set-window": "node ../../tools/contest-admin.mjs --contest parade",
     "seed-floats": "node scripts/seed-floats.mjs",
     "seed-float-images": "node scripts/seed-float-images.mjs"
   },

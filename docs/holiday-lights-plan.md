@@ -31,7 +31,7 @@ doesn't pay for itself. Turborepo can be added later without restructuring.
 ├── apps/
 │   ├── parade/                  # today's site, moved as-is
 │   │   ├── src/  index.html  vite.config.ts  wrangler.jsonc  public/
-│   │   └── scripts/             # seed-floats, seed-float-images (+ set-voting-window until M3)
+│   │   └── scripts/             # seed-floats, seed-float-images
 │   └── lights/
 │       └── src/  index.html  vite.config.ts  wrangler.jsonc  public/
 ├── supabase/                    # ONE shared project: parade in `public`, lights in `lights`
@@ -267,7 +267,7 @@ about every app. CSS-in-JS would be a second styling system next to Tailwind.
 | 5-tap secret sign-in | `core/useSecretTaps` | |
 | `EntryCard` vote-button label logic | `ui/VoteButton` | The card itself stays per app. |
 | *(new)* directions link builder | `core/directions` | Generic, so it lives in core even though only lights uses it today. |
-| `set-voting-window.mjs` | `tools/contest-admin.mjs --app lights` | Reads `apps/<app>/.env`. |
+| `set-voting-window.mjs` | `tools/contest-admin.mjs --contest parade\|lights` | Reads `apps/<contest>/.env` (M3). |
 
 **Stays in each app:** `EntryCard`, hero, `AdminEditButton`'s form, seed scripts, and the map
 (lights-only for now; it can graduate to a package if a third site needs one).
@@ -457,12 +457,15 @@ Today is Nov 12. The contest dates set three hard gates:
   results) match, and `App.tsx` is mostly composition.
 
 ### M3: Lights backend
+- Spec: [`docs/milestones/M3.md`](milestones/M3.md).
 - `lights` schema in the shared project: exposure + grants, migrations for the tables in
   §4, RLS, `lights.voting_is_open()`, `lights.submissions_are_open()`,
   `lights.get_results()` (top 3), and the `houses` bucket policies. Reuse
   `public.is_admin()`.
 - Geofence: I draft a bounding box around Worthington Hills from map data **for you to
-  confirm**, then store it in `lights.settings`.
+  confirm**, then store it in `lights.settings`. Drafted in M3: lat 40.1175 – 40.1450,
+  lng −83.0670 – −83.0305 (sources and derivation in `M3.md`); change it with
+  `contest-admin --contest lights` (`GEOFENCE=…`).
 - Census-geocoder Edge Function.
 - `contest-admin` CLI gets `--contest lights` to set the submission and voting windows
   and the reveal flag in `lights.settings`.
