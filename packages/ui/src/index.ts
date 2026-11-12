@@ -9,3 +9,4 @@ export {
   type VoteButtonLabels,
   type VoteButtonState,
 } from './labels'
+export { PhotoPicker, type PhotoPickerProps } from './PhotoPicker'
