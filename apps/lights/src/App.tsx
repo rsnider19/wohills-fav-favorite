@@ -49,7 +49,9 @@ export default function App() {
   const [previewAnchor] = useState(() => new Date())
   const previewing = preview !== null && (import.meta.env.DEV || isAdmin)
   const settings = previewing ? previewSettings(preview, previewAnchor, liveSettings) : liveSettings
-  const status = settingsLoading ? null : contestStatus(settings, now)
+  // Until settings load, the hero is laid out from the defaults (the decided dates) but kept
+  // invisible, so its space is reserved and nothing jumps when the real dates arrive (CLS).
+  const status = contestStatus(settings, now)
 
   // Hidden sign-in for the admin before anything opens: /?signin or 5 taps on the hero eyebrow.
   const [showAuth, setShowAuth] = useState(() => new URLSearchParams(window.location.search).has('signin'))
@@ -57,7 +59,7 @@ export default function App() {
 
   // Re-fetch the moment the phase flips (a window boundary passed) instead of waiting
   // out the 30-second poll.
-  const phase = status?.phase ?? null
+  const phase = settingsLoading ? null : status.phase
   const lastPhase = useRef<Phase | null>(null)
   useEffect(() => {
     const previous = lastPhase.current
@@ -75,14 +77,15 @@ export default function App() {
     flash(TOASTS.signedOut)
   }, [supabase, flash])
 
-  const tagline = status
-    ? heroTagline(status.phase, {
-        submissionsOpenAt: toDate(settings.submissions_open_at),
-        submissionsCloseAt: toDate(settings.submissions_close_at),
-        votingOpensAt: toDate(settings.voting_opens_at),
-        submissionsOpen: status.submissionsOpen,
-      })
-    : null
+  // "Entries open {day}" only while that day is still ahead: the submissions kill switch can
+  // hold the contest in "before" after the stored opening has passed.
+  const entriesOpenAt = status.countdown?.kind === 'entries-open' ? status.countdown.target : null
+  const tagline = heroTagline(status.phase, {
+    submissionsOpenAt: entriesOpenAt,
+    submissionsCloseAt: toDate(settings.submissions_close_at),
+    votingOpensAt: toDate(settings.voting_opens_at),
+    submissionsOpen: status.submissionsOpen,
+  })
 
   return (
     <>
@@ -95,13 +98,13 @@ export default function App() {
           onToggleMotion={toggleMotion}
         />
         <main className="grow">
-          <Hero status={status} tagline={tagline} now={now} onSecretTap={onSecretTap} />
+          <Hero status={status} pending={settingsLoading} tagline={tagline} now={now} onSecretTap={onSecretTap} />
           <Marquee text={TICKER} className="ticker" />
           <Gallery
             houses={houses}
             loading={housesLoading}
             phase={phase}
-            submissionsOpenAt={toDate(settings.submissions_open_at)}
+            submissionsOpenAt={entriesOpenAt}
             onRetry={refreshHouses}
           />
         </main>

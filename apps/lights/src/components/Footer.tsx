@@ -15,7 +15,10 @@ export function Footer({ phone, isAdmin, onSignOut }: Props) {
         <div className="space-y-1">
           <p>{FOOTER.madeWith}</p>
           <p>
-            {FOOTER.rule} <span className="text-primary">★</span>
+            {FOOTER.rule}{' '}
+            <span className="text-primary" aria-hidden="true">
+              ★
+            </span>
           </p>
         </div>
         {phone && (

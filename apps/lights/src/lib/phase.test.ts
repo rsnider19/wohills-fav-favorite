@@ -57,9 +57,31 @@ describe('previewSettings', () => {
     // The decided windows: submissions run through Dec 15, voting closes Dec 21 (ET).
     expect(voting.submissions_close_at).toBe(base.submissions_close_at)
     expect(voting.voting_closes_at).toBe(base.voting_closes_at)
+    // Weeks ahead of the contest, "before" keeps every real date (Nov 28 opening included).
+    const early = previewSettings('before', new Date('2026-11-12T17:00:00Z'), base)
+    expect(early.submissions_open_at).toBe(base.submissions_open_at)
+    expect(early.voting_opens_at).toBe(base.voting_opens_at)
     const subs = previewSettings('submissions', NOW, base)
     expect(subs.voting_opens_at).toBe(base.voting_opens_at)
     expect(subs.submissions_close_at).toBe(base.submissions_close_at)
+  })
+
+  it('never yields an out-of-order window or a different status, whatever the anchor', () => {
+    const inOrder = (a: string | null, b: string | null) => !a || !b || Date.parse(a) < Date.parse(b)
+    for (let day = 0; day < 75; day++) {
+      // Nov 1 2026 to mid-January, half past every hour of the day in turn.
+      const anchor = new Date(Date.UTC(2026, 10, 1 + day, day % 24, 30))
+      for (const phase of PHASES) {
+        const p = previewSettings(phase, anchor, base)
+        const label = `${phase} at ${anchor.toISOString()}`
+        expect(inOrder(p.submissions_open_at, p.submissions_close_at), label).toBe(true)
+        expect(inOrder(p.voting_opens_at, p.voting_closes_at), label).toBe(true)
+        const st = contestStatus(p, anchor)
+        expect(st.phase, label).toBe(phase)
+        expect(st.submissionsOpen, label).toBe(phase === 'submissions' || phase === 'voting')
+        expect(st.votingOpen, label).toBe(phase === 'voting')
+      }
+    }
   })
 
   it('keeps the geofence', () => {

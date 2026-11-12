@@ -597,3 +597,12 @@ body::after {
   animation: none !important;
   transition: none !important;
 }
+
+/* Hero scrolled out of view (Hero.tsx sets data-offscreen): hold its loops. The swag
+   twinkle and the countdown chase can't run on the compositor, so they would otherwise
+   cost style work every frame while the visitor browses the lineup. */
+[data-slot="hero"][data-offscreen] *,
+[data-slot="hero"][data-offscreen] *::before,
+[data-slot="hero"][data-offscreen] *::after {
+  animation-play-state: paused;
+}

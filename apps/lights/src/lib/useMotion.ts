@@ -22,16 +22,16 @@ export function applyStoredMotion() {
 export function useMotion(): { motionOn: boolean; toggleMotion: () => void } {
   const [motionOn, setMotionOn] = useState(() => document.documentElement.dataset.motion !== 'off')
   const toggleMotion = useCallback(() => {
-    setMotionOn((on) => {
-      const next = on ? 'off' : 'on'
-      document.documentElement.dataset.motion = next
-      try {
-        localStorage.setItem(KEY, next)
-      } catch {
-        // Private mode: the switch still works for this visit.
-      }
-      return !on
-    })
+    // <html data-motion> is the source of truth; side effects stay out of the state updater
+    // (StrictMode runs updaters twice).
+    const next = document.documentElement.dataset.motion === 'off' ? 'on' : 'off'
+    document.documentElement.dataset.motion = next
+    try {
+      localStorage.setItem(KEY, next)
+    } catch {
+      // Private mode: the switch still works for this visit.
+    }
+    setMotionOn(next === 'on')
   }, [])
   return { motionOn, toggleMotion }
 }

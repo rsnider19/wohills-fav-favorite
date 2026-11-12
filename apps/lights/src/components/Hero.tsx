@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { Countdown } from '@wohills/ui'
+import { useEffect, useRef, type ReactNode } from 'react'
+import { cn, Countdown } from '@wohills/ui'
 import type { ContestStatus } from '../lib/phase'
 import { COUNTDOWN_LABEL, COUNTDOWN_UNITS, HERO_CTA, HERO_EYEBROW, SCOREBOARD, SR_TITLE } from '../copy'
 import { LightString } from './LightString'
@@ -15,9 +15,11 @@ const LETTERS = [
 ] as const
 
 interface Props {
-  /** null until settings have loaded (the tagline and countdown wait for real dates). */
-  status: ContestStatus | null
-  tagline: string | null
+  status: ContestStatus
+  /** Settings still loading: the tagline and countdown keep their space but stay hidden
+   *  until the real dates arrive. */
+  pending: boolean
+  tagline: string
   now: Date
   /** Extra calls to action before "See the houses" (M5: "Enter your house"). */
   actions?: ReactNode
@@ -27,9 +29,24 @@ interface Props {
   children?: ReactNode
 }
 
-export function Hero({ status, tagline, now, actions, onSecretTap, children }: Props) {
+export function Hero({ status, pending, tagline, now, actions, onSecretTap, children }: Props) {
+  // The swag twinkle and the countdown chase are main-thread animations (SVG opacity,
+  // border-image steps): Chromium recalculates their style every frame, on screen or not.
+  // Hold them while the hero is scrolled away (effects.css, [data-offscreen]).
+  const ref = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver(([entry]) => {
+      el.toggleAttribute('data-offscreen', !entry.isIntersecting)
+    })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+
+  const hide = pending ? 'invisible' : undefined
   return (
-    <section data-slot="hero" className="relative">
+    <section ref={ref} data-slot="hero" className="relative">
       <LightString />
       <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 pt-6 pb-14 sm:px-6 sm:pt-10 lg:grid-cols-[1.15fr_1fr] lg:items-center lg:gap-12 lg:pb-20">
         <div>
@@ -63,11 +80,13 @@ export function Hero({ status, tagline, now, actions, onSecretTap, children }: P
               ))}
             </span>
           </h1>
-          {tagline && (
-            <p data-slot="hero-tagline" className="rise mt-6 max-w-[34ch] text-lg leading-relaxed text-fg/85 sm:text-xl">
-              {tagline}
-            </p>
-          )}
+          <p
+            data-slot="hero-tagline"
+            aria-hidden={pending || undefined}
+            className={cn('rise mt-6 max-w-[34ch] text-lg leading-relaxed text-fg/85 sm:text-xl', hide)}
+          >
+            {tagline}
+          </p>
           <div data-slot="hero-actions" className="rise mt-8 flex flex-wrap gap-3">
             {actions}
             <a href="#houses" className="btn-bulb">
@@ -76,25 +95,23 @@ export function Hero({ status, tagline, now, actions, onSecretTap, children }: P
             </a>
           </div>
         </div>
-        {status && (
-          <div className="rise" style={{ animationDelay: '0.2s' }}>
-            {status.countdown ? (
-              <Countdown
-                label={COUNTDOWN_LABEL[status.countdown.kind]}
-                labelPrefix="★ "
-                target={status.countdown.target}
-                now={now}
-                unitLabels={COUNTDOWN_UNITS}
-              />
-            ) : (
-              // No window ahead (closed, results): the same scoreboard, holding a message.
-              <div data-slot="scoreboard-wrap">
-                <p data-slot="countdown-label">{SCOREBOARD[status.phase].label}</p>
-                <p data-slot="scoreboard">{SCOREBOARD[status.phase].text}</p>
-              </div>
-            )}
-          </div>
-        )}
+        <div aria-hidden={pending || undefined} className={cn('rise', hide)} style={{ animationDelay: '0.2s' }}>
+          {status.countdown ? (
+            <Countdown
+              label={COUNTDOWN_LABEL[status.countdown.kind]}
+              labelPrefix="★ "
+              target={status.countdown.target}
+              now={now}
+              unitLabels={COUNTDOWN_UNITS}
+            />
+          ) : (
+            // No window ahead (closed, results): the same scoreboard, holding a message.
+            <div data-slot="scoreboard-wrap">
+              <p data-slot="countdown-label">{SCOREBOARD[status.phase].label}</p>
+              <p data-slot="scoreboard">{SCOREBOARD[status.phase].text}</p>
+            </div>
+          )}
+        </div>
       </div>
       {children}
     </section>

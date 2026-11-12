@@ -32,7 +32,8 @@ export function Gallery({ houses, loading, phase, submissionsOpenAt, onRetry, to
         <div>
           {houses && houses.length > 0 && (
             <p data-slot="gallery-count" className="neon-sm mb-2 font-display text-xs tracking-[0.2em] text-primary uppercase sm:text-sm">
-              ★ {GALLERY.count(houses.length)}
+              <span aria-hidden="true">★ </span>
+              {GALLERY.count(houses.length)}
             </p>
           )}
           <h2 data-slot="gallery-title" data-bulb="green" className="neon font-display text-4xl text-fg sm:text-5xl">

@@ -71,6 +71,10 @@ export function contestStatus(settings: LightsSettings, now: Date): ContestStatu
   return { phase, submissionsOpen, ownerCanEdit, votingOpen: vw.votingOpen, countdown }
 }
 
+/** `a` before `b` (or equal, with `orEqual`); an open-ended bound is always in order. */
+const inOrder = (a: string | null, b: string | null, orEqual = false) =>
+  !a || !b || (orEqual ? Date.parse(a) <= Date.parse(b) : Date.parse(a) < Date.parse(b))
+
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
 
@@ -98,27 +102,42 @@ export function previewSettings(phase: Phase, anchor: Date, base: LightsSettings
     voting_closes_at: at(voteClose),
   }
 
-  // Prefer the real dates from lights.settings wherever they still put `anchor` in `phase`,
-  // so a preview never shows a window that contradicts the decided one (e.g. "late entries
-  // through Dec 3" when submissions really close Dec 15). Only the dates the real settings
-  // can't supply (a past open date for "before", a voting window that hasn't started for
-  // "voting") stay synthesized.
-  const wantSubmissionsOpen = phase === 'submissions' || phase === 'voting'
+  // Prefer the real dates from lights.settings wherever they still fit, so a preview never
+  // shows a window that contradicts the decided one (e.g. "late entries through Dec 3" when
+  // submissions really close Dec 15). Only the dates the real settings can't supply (a past
+  // opening for "before", a voting window that has already started for "voting") stay
+  // synthesized. "Fits" means the whole status at `anchor` is unchanged (phase, both open
+  // flags, owner edits, countdown kind) and the windows stay in order; checking the phase
+  // alone let e.g. a results preview pair a real Nov 28 opening with a synthesized earlier
+  // close, or keep voting running behind the results.
+  const want = contestStatus(synthesized, anchor)
   const fits = (candidate: LightsSettings) => {
-    const status = contestStatus(candidate, anchor)
-    return status.phase === phase && status.submissionsOpen === wantSubmissionsOpen
+    const got = contestStatus(candidate, anchor)
+    return (
+      inOrder(candidate.submissions_open_at, candidate.submissions_close_at) &&
+      inOrder(candidate.voting_opens_at, candidate.voting_closes_at) &&
+      inOrder(candidate.submissions_open_at, candidate.voting_opens_at, true) &&
+      got.phase === want.phase &&
+      got.submissionsOpen === want.submissionsOpen &&
+      got.votingOpen === want.votingOpen &&
+      got.ownerCanEdit === want.ownerCanEdit &&
+      got.countdown?.kind === want.countdown?.kind
+    )
   }
-  const fields = [
-    'submissions_open_at',
-    'submissions_close_at',
-    'voting_opens_at',
-    'voting_closes_at',
-  ] as const
+  const fields = ['submissions_open_at', 'submissions_close_at', 'voting_opens_at', 'voting_closes_at'] as const
+  // Repeat until nothing changes: one real date can make room for another (a real voting
+  // opening lets the real, later submissions opening stay in order).
   let result = synthesized
-  for (const field of fields) {
-    if (!base[field]) continue
-    const candidate = { ...result, [field]: base[field] }
-    if (fits(candidate)) result = candidate
+  for (let changed = true; changed; ) {
+    changed = false
+    for (const field of fields) {
+      if (!base[field] || result[field] === base[field]) continue
+      const candidate = { ...result, [field]: base[field] }
+      if (fits(candidate)) {
+        result = candidate
+        changed = true
+      }
+    }
   }
   return result
 }
