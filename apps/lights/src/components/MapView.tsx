@@ -47,6 +47,16 @@ export const MapView = memo(function MapView({ houses, box, ownPending, onView, 
     [houses, pick],
   )
 
+  // Back/forward to an entry with another ?house= (or none): show that one.
+  useEffect(() => {
+    const sync = () => {
+      focusSheet.current = false
+      setPicked(parseHouse(window.location.search))
+    }
+    window.addEventListener('popstate', sync)
+    return () => window.removeEventListener('popstate', sync)
+  }, [])
+
   // Picked with Enter/Space: the sheet's heading takes focus, so the next Tab reaches
   // "Directions".
   useEffect(() => {
@@ -90,7 +100,16 @@ export const MapView = memo(function MapView({ houses, box, ownPending, onView, 
   const fallback = (
     <div data-slot="map-fallback" role="status">
       <p>{MAP.failed}</p>
-      <button type="button" className="btn-ghost" onClick={() => onView('lineup')}>
+      <button
+        type="button"
+        className="btn-ghost"
+        onClick={() => {
+          // This button goes away with the map: hand focus to the toggle's "Lineup" (the
+          // same element in both views) instead of dropping it on <body>.
+          frame.current?.closest('#houses')?.querySelector<HTMLElement>('[data-slot="segmented"] button')?.focus()
+          onView('lineup')
+        }}
+      >
         {MAP.showLineup}
       </button>
     </div>

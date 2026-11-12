@@ -86,6 +86,9 @@ export default function HouseMap({ houses, box, selectedId, getInset, onSelect, 
     map.on('error', () => {
       if (styled || map.isStyleLoaded()) return
       styled = true
+      // The overlay covers the map: keep its bulbs and buttons out of the Tab order and
+      // away from screen readers too.
+      el.inert = true
       latest.current.onFail()
     })
     // A tap on the map itself (not on a bulb) closes the sheet.

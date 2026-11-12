@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { NAVIGATE_EVENT } from './route'
 
 /** How the home page shows the houses: the lineup (cards) or the map. It lives in the
  *  query string (?view=map), not a path: it is a view of the same lineup, it survives a
@@ -37,9 +38,21 @@ export function replaceSearch(search: string) {
   window.history.replaceState(window.history.state, '', window.location.pathname + search)
 }
 
-/** The current view, read once from the URL; setting it rewrites the URL. */
+/** The current view, from the URL; setting it rewrites the URL. */
 export function useView(): [View, (view: View) => void] {
   const [view, setViewState] = useState<View>(() => parseView(window.location.search))
+  // Back/forward can land on an entry with the other view (the hero's #houses link adds
+  // one), and in-app links go home without ?view=: follow the address bar, so what shows
+  // is what a reload or a shared link would show.
+  useEffect(() => {
+    const sync = () => setViewState(parseView(window.location.search))
+    window.addEventListener('popstate', sync)
+    window.addEventListener(NAVIGATE_EVENT, sync)
+    return () => {
+      window.removeEventListener('popstate', sync)
+      window.removeEventListener(NAVIGATE_EVENT, sync)
+    }
+  }, [])
   const setView = useCallback((next: View) => {
     replaceSearch(viewSearch(window.location.search, next))
     setViewState(next)
