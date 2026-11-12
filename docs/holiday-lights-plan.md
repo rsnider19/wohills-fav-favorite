@@ -63,7 +63,12 @@ build step. Each app's Vite compiles them:
 }
 ```
 
-### Hosting: Cloudflare Workers for both sites, deployed by Workers Builds (decided)
+### Hosting: Cloudflare Workers for both sites (decided, **on hold**)
+
+> **On hold:** DNS and deployment changes are paused. Until the H milestone below is
+> picked up, the parade keeps deploying from Vercel exactly as it does today, and the
+> lights app is only run locally. Everything in this section is the target setup for
+> when hosting work resumes.
 
 Each app is a Worker with static assets: `wrangler.jsonc` with
 `assets.directory: "./dist"` and `not_found_handling: "single-page-application"`. That's
@@ -405,7 +410,7 @@ RLS highlights:
 
 ## 6. Milestones
 
-Today is Nov 12. Submissions only need M1 → M5. The map (M6) and voting (M7) can ship
+Today is Nov 12. Submissions only need M1 → M5, plus H (hosting, on hold). The map (M6) and voting (M7) can ship
 after submissions open, as long as they land before voting opens. M3 can run in parallel
 with M2.
 
@@ -413,12 +418,12 @@ with M2.
 - npm workspaces; move the current app to `apps/parade` (src, public, scripts,
   vite/ts config, `wrangler.jsonc`). `supabase/` stays at the repo root because it
   becomes the shared project. Root `tsconfig.base.json` + shared eslint.
-- Connect the `wh-4th-fan-vote` Worker to the repo with Workers Builds (settings in §1)
-  and verify the workspace install.
-- Cut the parade over from Vercel to Cloudflare (§1 cutover steps). Remove
-  `vercel.json` / `.vercelignore` and update the README's deploy section.
-- **Done when:** a push to `main` deploys the parade via Workers Builds, the custom
-  domain serves it from Cloudflare identically, and Vercel is disconnected.
+- **No hosting changes.** Keep the current Vercel deploy working without touching the
+  dashboard: the root `vercel.json` gets `"buildCommand": "npm run build -w apps/parade"`
+  and `"outputDirectory": "apps/parade/dist"` alongside the existing SPA rewrite.
+  `wrangler.jsonc` moves into `apps/parade` untouched, ready for H.
+- **Done when:** `npm run build -w apps/parade` is green locally, and the PR's Vercel
+  preview serves the parade identically to production.
 
 ### M2: Shared packages + token contract
 - Create `@wohills/core` and `@wohills/ui` and extract everything in the table in §3.
@@ -450,7 +455,8 @@ with M2.
 - Lights `@theme` + `data-slot` effects; hero, countdown, gallery of mock entries,
   phone auth dialog in theme.
 - Run the `frontend-design` pass here; verify reduced-motion and flash-rate guardrails.
-- **Done when:** a themed preview deploy with mock data is up for feedback.
+- **Done when:** the themed app runs locally with mock data, and screenshots (phone and
+  desktop) are on the PR for feedback.
 
 ### M5: Submission flow + moderation
 - Photo capture/pick, then shared resize/upload, address entry, GPS pin with drag
@@ -472,19 +478,29 @@ with M2.
 - The submitter's own house shows "Your house" in place of the vote button.
 - Late-approved entries appear mid-vote without a reload, via the existing 30s poll.
 - Top-3 reveal with the "power surge" sequence.
-- **Done when:** the full window lifecycle works in preview (pre-vote → live →
+- **Done when:** the full window lifecycle works locally (pre-vote → live →
   closed → revealed) using the admin preview toggle.
 
 ### M8: Launch hardening
-- Create the `wh-holiday-lights` Worker with Workers Builds; attach the custom domain
-  **`holiday-lights.worthingtonhills.org`**. OG image.
+- OG image and social meta for the lights site.
 - Expose the `lights` schema on hosted. Revisit the SMS rate limits, which are now
   shared by both sites.
 - `contest-admin` runbook for windows/reveal/admin phone.
 - Playwright smoke tests for both apps in CI; accessibility pass.
-- **Done when:** the runbook has been rehearsed end to end on production with test data,
-  then wiped. Truncate only `lights.*` tables and the `houses` bucket; the parade data
-  lives in the same project.
+- **Done when:** the runbook has been rehearsed end to end against the hosted Supabase
+  project with test data, then wiped. Truncate only `lights.*` tables and the `houses`
+  bucket; the parade data lives in the same project.
+
+### H: Hosting + DNS (on hold, must land before submissions open)
+- Confirm `worthingtonhills.org` uses Cloudflare DNS (a prerequisite for Worker custom
+  domains).
+- Parade: connect the `wh-4th-fan-vote` Worker via Workers Builds and verify the
+  workspace install. Cut over from Vercel (§1 steps), then remove `vercel.json` /
+  `.vercelignore` and update the README.
+- Lights: create the `wh-holiday-lights` Worker via Workers Builds and attach
+  **`holiday-lights.worthingtonhills.org`**.
+- **Done when:** pushes to `main` deploy both apps via Workers Builds, both custom domains
+  serve from Cloudflare, and Vercel is disconnected.
 
 ### Stretch (post-launch)
 - "Light tour": a route through several entries (Google Maps URLs accept a limited number
@@ -505,7 +521,7 @@ with M2.
 | 5 | Windows | **Overlapping**: owner edits/withdrawals lock when voting opens (§4) |
 | 6 | Geofence | **Derived from map data by Claude, confirmed by you** (M3) |
 | 7 | Domain | **`holiday-lights.worthingtonhills.org`** |
-| 8 | Hosting | **Cloudflare Workers for both sites** (parade moves off Vercel), deployed by **Workers Builds** (§1) |
+| 8 | Hosting | **Cloudflare Workers for both sites**, deployed by **Workers Builds** (§1). **On hold**; parade stays on Vercel until H |
 
-Still needed: whether `worthingtonhills.org` DNS is already on Cloudflare (needed in
-M1), and the actual submission and voting dates (needed before M8).
+Still needed: the actual submission and voting dates (before M8). When hosting
+resumes, confirm whether `worthingtonhills.org` DNS is on Cloudflare (H).
