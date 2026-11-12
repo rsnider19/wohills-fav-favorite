@@ -31,7 +31,7 @@ doesn't pay for itself. Turborepo can be added later without restructuring.
 ├── apps/
 │   ├── parade/                  # today's site, moved as-is
 │   │   ├── src/  index.html  vite.config.ts  wrangler.jsonc  public/
-│   │   └── scripts/             # seed-floats, seed-float-images
+│   │   └── scripts/             # seed-floats, seed-float-images (+ set-voting-window until M3)
 │   └── lights/
 │       └── src/  index.html  vite.config.ts  wrangler.jsonc  public/
 ├── supabase/                    # ONE shared project: parade in `public`, lights in `lights`
@@ -91,16 +91,16 @@ Things to get right:
   each Worker's **Build → Variables**, not its runtime variables, or Vite bakes in
   `undefined`. Both apps use the same values (shared project); lights selects the
   `lights` schema in code.
-- **Workspace install.** With the root directory set to an app, confirm in M1 that the
-  build installs from the root `package-lock.json` so `@wohills/*` resolve. If it
+- **Workspace install.** With the root directory set to an app, confirm in H that the
+  build installs from the root `package-lock.json` so `@wohills/*` resolve. (M1 checked
+  this locally: `npm ci` inside `apps/parade` uses the root lockfile.) If it
   doesn't, the build command becomes
   `cd ../.. && npm ci && npm run build -w apps/<app>`.
 - **Previews.** Non-production branch builds get a preview URL, so each PR gets
   per-app previews the way Vercel provides them today.
 - **Custom domains** on a Worker require `worthingtonhills.org` to use Cloudflare DNS.
-  If the zone is hosted elsewhere today, moving it is an M1 (parade) / M8 (lights)
-  prerequisite.
-- **Parade cutover from Vercel** (M1): deploy the Worker, verify it on its
+  If the zone is hosted elsewhere today, moving it is an H prerequisite.
+- **Parade cutover from Vercel** (H): deploy the Worker, verify it on its
   `workers.dev` URL, attach the custom domain (which repoints DNS away from Vercel),
   then disconnect the Vercel project and delete `vercel.json` / `.vercelignore`. The
   parade site is in its post-reveal state, so a brief DNS overlap is harmless.
@@ -428,13 +428,17 @@ Today is Nov 12. The contest dates set three hard gates:
   submissions open.
 
 ### M1: Monorepo conversion (no behavior change)
-- npm workspaces; move the current app to `apps/parade` (src, public, scripts,
-  vite/ts config, `wrangler.jsonc`). `supabase/` stays at the repo root because it
-  becomes the shared project. Root `tsconfig.base.json` + shared eslint.
+- Spec: [`docs/milestones/M1.md`](milestones/M1.md).
+- npm workspaces; move the current app to `apps/parade` (src, public, `index.html`,
+  scripts including `set-voting-window.mjs`, vite/ts config, `wrangler.jsonc`,
+  `.env.example`). The local `.env` moves to `apps/parade/.env`. `supabase/` stays at the
+  repo root because it becomes the shared project. Root `tsconfig.base.json` + shared
+  eslint.
 - **No hosting changes.** Keep the current Vercel deploy working without touching the
   dashboard: the root `vercel.json` gets `"buildCommand": "npm run build -w apps/parade"`
   and `"outputDirectory": "apps/parade/dist"` alongside the existing SPA rewrite.
-  `wrangler.jsonc` moves into `apps/parade` untouched, ready for H.
+  `wrangler.jsonc` moves into `apps/parade` ready for H, untouched except its
+  editor-only `$schema` path.
 - **Done when:** `npm run build -w apps/parade` is green locally, and the PR's Vercel
   preview serves the parade identically to production.
 
