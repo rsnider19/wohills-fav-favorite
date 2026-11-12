@@ -1,6 +1,6 @@
 # Holiday Lights Contest: Monorepo + Milestone Plan
 
-Status: **draft for discussion**. Nothing here is built yet.
+Status: **decisions made (see §7)**. Nothing here is built yet.
 
 ## Goal
 
@@ -31,11 +31,10 @@ doesn't pay for itself. Turborepo can be added later without restructuring.
 ├── apps/
 │   ├── parade/                  # today's site, moved as-is
 │   │   ├── src/  index.html  vite.config.ts  vercel.json  public/
-│   │   ├── supabase/            # parade's Supabase project (migrations untouched)
 │   │   └── scripts/             # seed-floats, seed-float-images
 │   └── lights/
-│       ├── src/  index.html  vite.config.ts  vercel.json  public/
-│       └── supabase/            # lights' Supabase project
+│       └── src/  index.html  vite.config.ts  vercel.json  public/
+├── supabase/                    # ONE shared project: parade in `public`, lights in `lights`
 ├── packages/
 │   ├── core/                    # @wohills/core: logic, no styling
 │   └── ui/                      # @wohills/ui: themed React components + CSS
@@ -71,21 +70,44 @@ be changed **in the same window** that the move merges, or the live parade site'
 deploy breaks. (The README still describes Cloudflare/wrangler; Vercel is what actually
 deploys now, so `wrangler.jsonc` and the deploy script can be retired in M1.)
 
-### Supabase: one project per site (recommended)
+### Supabase: one shared project, one Postgres schema per contest (decided)
 
-| | Separate projects (recommended) | One shared project |
-|---|---|---|
-| Parade DB | Untouched; its results stay frozen as-is | Needs migrating to a multi-contest schema |
-| Schema fit | Lights gets a schema designed for submissions + geodata | Generic `contests`/`entries` tables have to serve both |
-| Blast radius | A bad lights migration can't touch parade data | Shared |
-| Cost/ops | Twilio creds configured twice; Supabase free tier allows **2 active projects** per org | One config |
-| Phone users | A neighbor re-verifies on the new site (sessions are per-origin anyway) | Same `auth.users` row, but still a new login per domain |
+The parade's existing Supabase project hosts both sites. The parade's tables stay exactly
+where they are in `public`, and nothing about them is migrated. The lights contest gets
+its own **`lights` schema** with its own `houses`, `votes` and `settings` tables, so the
+two contests can't collide.
 
-The fairness rules (votes PK on `user_id`, `voting_is_open()`, `is_admin()`,
-`results_visible`-gated `get_results()`) are SQL patterns, so we **copy them** into the
-lights migrations and document them once as a "contest contract" in
-`packages/core/README.md`. Sharing SQL across two Supabase projects via a package isn't
-worth the tooling.
+What the sites share:
+
+- **`auth.users`**: a neighbor who verified for the parade already has an account. They
+  still sign in once per domain, because sessions are per-origin.
+- **Twilio/SMS config**: configured once, with one SMS rate limit across both sites.
+- **Admin**: `public.admin_config` and `public.is_admin()`. Lights policies call
+  `public.is_admin()`, so the same admin phone runs both sites.
+- **Storage**: a new public `houses` bucket next to `floats`, with policies keyed on
+  `bucket_id`.
+- **Migrations**: the single `supabase/` directory stays at the repo root (not per app).
+  Lights migrations are prefixed so they're easy to spot, e.g.
+  `2026111x_lights_*.sql`.
+
+Wiring the schema up:
+
+- Expose the schema to the API: `schemas = ["public", "graphql_public", "lights"]` in
+  `config.toml`; on hosted, **Dashboard → API → Exposed schemas**.
+- A new schema needs explicit grants:
+  `grant usage on schema lights to anon, authenticated`, plus table, function and
+  default privileges. RLS still does the real enforcement.
+- The lights client is `createClient(url, key, { db: { schema: 'lights' } })`.
+  `core`'s `SupabaseProvider` takes that client, so the shared hooks work unchanged.
+- Generate types per schema: `supabase gen types --schema public,lights`.
+
+The fairness rules (votes PK on `user_id`, `voting_is_open()`, `results_visible`-gated
+`get_results()`) are re-implemented in the `lights` schema against `lights.settings`, and
+documented once as a "contest contract" in `packages/core/README.md`.
+
+⚠️ The two sites share blast radius. Lights migrations must only touch the `lights`
+schema and the `houses` bucket. Test them locally with `supabase db reset`, which
+re-runs the parade migrations as well, before `db push`.
 
 ---
 
@@ -222,10 +244,18 @@ SQL**, and the parade function can get the same one-line fix.
 
 ### Flows
 
-- **Submit** (during the submission window): sign in with phone, take or choose a photo
-  (resized client-side with the shared pipeline), enter the address, confirm the pin on
-  a mini-map, submit. While submissions are open, the submitter can edit or withdraw
-  their entry.
+- **Submit** (during the submission window, **one house per phone**): sign in with
+  phone, take or choose a photo (resized client-side with the shared pipeline), enter
+  the address, confirm the pin on a mini-map, submit. The entry is **pending until the
+  admin approves it**.
+- **Windows overlap** (decided). Submissions can stay open after voting starts, and a
+  late entry starts collecting votes as soon as it's approved. Because of that:
+  - The submitter can edit or withdraw freely **until voting opens**.
+  - After voting opens, the owner can no longer withdraw. That would silently delete
+    other people's votes through the cascade. The admin can still hide an entry.
+  - After voting opens, the owner can't change the photo or address either. Allowing it
+    would let someone swap a photo after collecting votes, and would flip a live entry
+    back to pending in the middle of voting. The admin can still edit.
 - **Browse**: gallery (shuffled order, like the parade ballot) ⇄ **map** toggle. Every
   entry shows a **navigate** icon button.
 - **Vote** (during the voting window): same as the parade. One vote per phone, changeable
@@ -266,10 +296,10 @@ It routes by coordinates, which is more reliable than address strings in a new
 subdivision, and labels with the address. Optional later: a small chooser
 (Apple / Google / Waze).
 
-### Schema sketch (lights Supabase project)
+### Schema sketch (`lights` schema in the shared project)
 
 ```sql
-houses (
+lights.houses (
   id uuid pk,
   entry_number int generated always as identity,   -- display number
   submitted_by uuid not null unique references auth.users on delete cascade, -- 1 per phone
@@ -284,9 +314,9 @@ houses (
   created_at, updated_at
 )
 
-votes (user_id uuid pk, house_id uuid fk, created_at, updated_at)   -- same as parade
+lights.votes (user_id uuid pk, house_id uuid fk, created_at, updated_at)  -- same as parade
 
-settings (
+lights.settings (
   submissions_open_at, submissions_close_at,
   voting_opens_at, voting_closes_at,
   voting_open bool,          -- kill switch
@@ -295,16 +325,21 @@ settings (
   geofence_min_lat, geofence_max_lat, geofence_min_lng, geofence_max_lng
 )
 
-admin_config (admin_phone)                                          -- same as parade
+-- admin: reuses public.admin_config / public.is_admin() (shared with the parade)
 ```
 
 RLS highlights:
 
 - `houses` select: `approved` rows to everyone; your own row to you; everything to admin.
-- `houses` insert/update by owner: only while `submissions_are_open()`, inside the
-  geofence, and `status` can't be changed by a non-admin (a trigger resets it to
-  `pending` when the photo or address changes).
-- `votes` insert/update: same as the parade, plus the target house must be `approved`.
+- `houses` insert by owner: only while `submissions_are_open()`, inside the geofence,
+  with `status = 'pending'`.
+- `houses` update/delete by owner: only while submissions are open **and** voting hasn't
+  opened yet (see "Windows overlap" above). A non-admin can't change `status`, and a
+  trigger resets it to `pending` when the photo or address changes.
+- `votes` insert/update: same as the parade, plus two conditions:
+  - The target house must be `approved`.
+  - **No self-votes** (decided): the target house's `submitted_by` must not be
+    `auth.uid()`. The UI shows "Your house" in place of the vote button.
 - Storage bucket `houses`: public read; writes only under `<auth.uid()>/…` and only while
   submissions are open.
 - `get_results()`: security definer, `results_visible` gated, **`limit 3`**.
@@ -345,8 +380,9 @@ after submissions open, as long as they land before voting opens. M3 can run in 
 with M2.
 
 ### M1: Monorepo conversion (no behavior change)
-- npm workspaces; move the current app to `apps/parade` (src, public, supabase, scripts,
-  vite/ts/vercel config); root `tsconfig.base.json` + shared eslint.
+- npm workspaces; move the current app to `apps/parade` (src, public, scripts,
+  vite/ts/vercel config). `supabase/` stays at the repo root because it becomes the
+  shared project. Root `tsconfig.base.json` + shared eslint.
 - Retire `wrangler.jsonc` / `npm run deploy`, update the README.
 - Repoint the parade Vercel project's Root Directory; add the ignored-build-step.
 - **Done when:** `npm run build -w apps/parade` is green and the deployed parade site is
@@ -362,14 +398,20 @@ with M2.
   results) match, and `App.tsx` is mostly composition.
 
 ### M3: Lights backend
-- New Supabase project; migrations for the schema in §4, RLS, `voting_is_open()`,
-  `submissions_are_open()`, `is_admin()`, `get_results()` (top 3), `houses` bucket
-  policies, geofence check.
+- `lights` schema in the shared project: exposure + grants, migrations for the tables in
+  §4, RLS, `lights.voting_is_open()`, `lights.submissions_are_open()`,
+  `lights.get_results()` (top 3), and the `houses` bucket policies. Reuse
+  `public.is_admin()`.
+- Geofence: I draft a bounding box around Worthington Hills from map data **for you to
+  confirm**, then store it in `lights.settings`.
 - Census-geocoder Edge Function.
-- Local `config.toml` on a third port range (e.g. 56xxx) with test OTP numbers.
+- `contest-admin` CLI gets `--contest lights` to set the submission and voting windows
+  and the reveal flag in `lights.settings`.
 - SQL tests for the fairness rules: double vote, out-of-window vote, out-of-geofence
-  insert, a non-admin approving their own entry, reading counts before reveal.
-- **Done when:** all rule tests pass against the local stack.
+  insert, self-vote, voting for a pending house, owner edit or withdraw after voting
+  opens, a non-admin approving their own entry, reading counts before reveal.
+- **Done when:** all rule tests pass against the local stack, and the parade's behavior
+  is unchanged after `supabase db reset`.
 
 ### M4: Lights app shell + visual system
 - Scaffold `apps/lights` on the shared packages.
@@ -381,7 +423,8 @@ with M2.
 ### M5: Submission flow + moderation
 - Photo capture/pick, then shared resize/upload, address entry, GPS pin with drag
   confirm, geocode fallback, submit.
-- "My entry" view (edit/withdraw while open), submission-window states.
+- "My entry" view: shows pending/approved status; edit or withdraw until voting opens,
+  read-only after that; submission-window states.
 - Admin moderation queue (approve/hide), edit, replace photo.
 - **Done when:** a test phone can submit from an iPhone and an Android, the admin
   approves it, and it appears in the gallery. **This gates opening submissions.**
@@ -394,17 +437,21 @@ with M2.
 
 ### M7: Voting + reveal
 - Voting on cards and the map sheet (shared hooks/`VoteButton`), window countdowns.
+- The submitter's own house shows "Your house" in place of the vote button.
+- Late-approved entries appear mid-vote without a reload, via the existing 30s poll.
 - Top-3 reveal with the "power surge" sequence.
 - **Done when:** the full window lifecycle works in preview (pre-vote → live →
   closed → revealed) using the admin preview toggle.
 
 ### M8: Launch hardening
-- Domain (e.g. `lights.worthingtonhills.org`), OG image, Twilio on the new project, SMS
-  rate limits.
+- Domain **`holiday-lights.worthingtonhills.org`**, OG image.
+- Expose the `lights` schema on hosted. Revisit the SMS rate limits, which are now
+  shared by both sites.
 - `contest-admin` runbook for windows/reveal/admin phone.
 - Playwright smoke tests for both apps in CI; accessibility pass.
 - **Done when:** the runbook has been rehearsed end to end on production with test data,
-  then wiped.
+  then wiped. Truncate only `lights.*` tables and the `houses` bucket; the parade data
+  lives in the same project.
 
 ### Stretch (post-launch)
 - "Light tour": a route through several entries (Google Maps URLs accept a limited number
@@ -414,13 +461,16 @@ with M2.
 
 ---
 
-## 7. Open decisions
+## 7. Decisions
 
-1. **Supabase**: separate project for lights (recommended) or one shared project?
-2. **Who can submit**: phone-verified residents only, one entry per phone (recommended)?
-3. **Moderation**: admin approval before an entry is public (recommended for public
-   photo uploads), or auto-publish with admin hide?
-4. **Self-voting**: may a submitter vote for their own house? (Easy to block in RLS.)
-5. **Dates**: submission window and voting window. Do they overlap or run back to back?
-6. **Geofence**: the neighborhood boundary (a bounding box is fine to start).
-7. **Domain** for the lights site.
+| # | Question | Decision |
+|---|---|---|
+| 1 | Supabase | **One shared project**, lights in its own `lights` Postgres schema (§1) |
+| 2 | Who can submit | **Phone-verified, one house per phone** |
+| 3 | Moderation | **Admin approves** before an entry is public |
+| 4 | Self-voting | **Blocked** in RLS |
+| 5 | Windows | **Overlapping**: owner edits/withdrawals lock when voting opens (§4) |
+| 6 | Geofence | **Derived from map data by Claude, confirmed by you** (M3) |
+| 7 | Domain | **`holiday-lights.worthingtonhills.org`** |
+
+Still needed before M8: the actual submission and voting dates.
