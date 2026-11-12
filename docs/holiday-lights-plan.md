@@ -410,9 +410,22 @@ RLS highlights:
 
 ## 6. Milestones
 
-Today is Nov 12. Submissions only need M1 → M5, plus H (hosting, on hold). The map (M6) and voting (M7) can ship
-after submissions open, as long as they land before voting opens. M3 can run in parallel
-with M2.
+Today is Nov 12. The contest dates set three hard gates:
+
+| Gate | Date | Must be done |
+|---|---|---|
+| **Submissions open** | **Sat Nov 28** | M1, M3, M4, M5, **H** (hosting, on hold), plus M8's backend items (hosted `lights` schema exposed, SMS limits, window set) |
+| **Voting opens** | **Tue Dec 8** | M6 (map + navigate), M7 (voting + reveal) |
+| **Voting closes** | **Sun Dec 20** | Reveal is flipped manually after close |
+
+⚠️ **Gate 1 is 16 days out**, so the schedule is tight:
+
+- M3 runs in parallel with M1/M2.
+- M2 is scoped to what lights needs before Nov 28 (phone auth, dialog, countdown, image
+  pipeline, data hooks, tokens). The rest of the parade's extraction, along with the
+  screenshot-parity work, can slip to after Nov 28 without blocking anything.
+- **H must come off hold by about Nov 23** to leave time for DNS and the domain before
+  submissions open.
 
 ### M1: Monorepo conversion (no behavior change)
 - npm workspaces; move the current app to `apps/parade` (src, public, scripts,
@@ -521,7 +534,13 @@ with M2.
 | 5 | Windows | **Overlapping**: owner edits/withdrawals lock when voting opens (§4) |
 | 6 | Geofence | **Derived from map data by Claude, confirmed by you** (M3) |
 | 7 | Domain | **`holiday-lights.worthingtonhills.org`** |
-| 8 | Hosting | **Cloudflare Workers for both sites**, deployed by **Workers Builds** (§1). **On hold**; parade stays on Vercel until H |
+| 8 | Dates | **Submissions Nov 28 – Dec 15, voting Dec 8 – Dec 20** (reveal after close, manual flip) |
+| 9 | Edit lock | **Confirmed**: owner edit/withdraw locks when voting opens |
+| 10 | Results | **Top 3 with rank and vote counts** (same as the parade) |
+| 11 | Admins | **Same single admin phone** as the parade (shared `public.admin_config`) |
+| 12 | Navigate | **Platform default**: Apple Maps on iOS/iPadOS, Google Maps elsewhere |
+| 13 | Entry name | **Optional** display name (`houses.title`), shown as the card title with the address underneath; falls back to the address |
+| 14 | Hosting | **Cloudflare Workers for both sites**, deployed by **Workers Builds** (§1). **On hold**; parade stays on Vercel until H |
 
-Still needed: the actual submission and voting dates (before M8). When hosting
-resumes, confirm whether `worthingtonhills.org` DNS is on Cloudflare (H).
+Still needed: when hosting resumes (by about Nov 23), confirm whether
+`worthingtonhills.org` DNS is on Cloudflare (H).
