@@ -1,162 +1,88 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useSession } from '@wohills/core'
-import { PhoneAuthDialog } from '@wohills/ui'
+import { useCallback, useEffect, useState } from 'react'
+import {
+  useContestSettings,
+  useIsAdmin,
+  useMyVote,
+  useNow,
+  usePolling,
+  useResults,
+  useSecretTaps,
+  useSession,
+  useShuffledOrder,
+  useToast,
+  useVotingWindow,
+  type WindowPreview,
+} from '@wohills/core'
+import { Countdown, Leaderboard, Marquee, PhoneAuthDialog, Toaster } from '@wohills/ui'
 import { supabase } from './lib/supabase'
-import type { Entry, ResultRow, Settings } from './types'
+import type { Entry, ResultRow } from './types'
+import { AUTH_LABELS, TICKER } from './copy'
 import badge from './assets/dynamic-duos-badge.png'
-import Countdown from './components/Countdown'
 import EntryCard from './components/EntryCard'
-import { AUTH_LABELS } from './copy'
-import Results from './components/Results'
 
-// Seeded 32-bit hash of an entry id (FNV-1a). Combined with a per-session seed
-// it gives each float a well-mixed sort key: the ballot order is random per page
-// load, but stable for a given seed so it never reshuffles mid-vote.
-function hashId(id: string, seed: number): number {
-  let h = (0x811c9dc5 ^ seed) >>> 0
-  for (let i = 0; i < id.length; i++) {
-    h ^= id.charCodeAt(i)
-    h = Math.imul(h, 0x01000193)
-  }
-  return h >>> 0
+// Module-level so useShuffledOrder's memo stays stable across renders.
+const entryId = (e: Entry) => e.id
+const entryNumber = (e: Entry) => String(e.entry_number)
+
+async function loadEntries() {
+  return (await supabase.from('entries').select('*').order('entry_number')).data as Entry[] | null
 }
 
 export default function App() {
   const { session } = useSession()
-  const [entries, setEntries] = useState<Entry[]>([])
-  const [settings, setSettings] = useState<Settings>({
-    voting_open: true,
-    results_visible: false,
-    voting_opens_at: null,
-    voting_closes_at: null,
-  })
-  const [storedVote, setMyVote] = useState<string | null>(null)
-  // Derived so signing out clears it without a setState-in-effect.
-  const myVote = session ? storedVote : null
-  const [results, setResults] = useState<ResultRow[]>([])
+  const now = useNow()
+  const { settings, loading: settingsLoading, refresh: refreshSettings } = useContestSettings()
+  const { data: entries = [], loading: entriesLoading, refresh: refreshEntries } = usePolling(loadEntries)
+  const { results, refresh: refreshResults } = useResults<ResultRow>(settings.results_visible)
+  const loading = settingsLoading || entriesLoading
+  const isAdmin = useIsAdmin(session)
+  const { toast, flash } = useToast()
+
   // Secret pre-voting sign-in (for the admin to upload photos): visiting
-  // /?signin opens the modal, as does 5 quick taps on the header badge.
+  // /?signin opens the modal, as do 5 quick taps on the header badge.
   // Harmless if discovered — voting outside the window is still blocked by RLS.
-  const [showAuth, setShowAuth] = useState(
-    () => new URLSearchParams(window.location.search).has('signin'),
-  )
-  const secretTaps = useRef({ count: 0, timer: 0 })
-  // Optional ?f=<entry number> pins that float to the top of the ballot;
-  // everyone else stays in the randomized order. Read once at load.
-  const [forcedFloat] = useState(
-    () => new URLSearchParams(window.location.search).get('f')?.trim() || null,
-  )
-  // Random seed picked once per page load so each visitor sees a different
-  // ballot order, while staying fixed for the session (no reshuffle on refresh).
-  const [shuffleSeed] = useState(() => Math.floor(Math.random() * 0xffffffff))
+  const [showAuth, setShowAuth] = useState(() => new URLSearchParams(window.location.search).has('signin'))
+  const onSecretTap = useSecretTaps(() => setShowAuth(true))
   const [pendingVote, setPendingVote] = useState<Entry | null>(null)
   const [voteBusy, setVoteBusy] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [isAdmin, setIsAdmin] = useState(false)
-  const [now, setNow] = useState(() => new Date())
+  const { myVote, vote } = useMyVote(session, { column: 'entry_id', paused: pendingVote !== null })
   // TEMP: header toggle to preview pre-vote vs. live-voting UI without touching
   // the database. null = use real settings/clock. Remove when done previewing.
-  const [previewMode, setPreviewMode] = useState<'prevote' | 'live' | null>(null)
+  const [previewMode, setPreviewMode] = useState<WindowPreview>(null)
 
   // The window is enforced server-side by RLS against the database clock;
   // this clock only drives the countdown display and button states.
-  const opensAt = settings.voting_opens_at ? new Date(settings.voting_opens_at) : null
-  const closesAt = settings.voting_closes_at ? new Date(settings.voting_closes_at) : null
-  const realBeforeOpen = opensAt !== null && now < opensAt
-  const realAfterClose = closesAt !== null && now >= closesAt
-  const beforeOpen = previewMode ? previewMode === 'prevote' : realBeforeOpen
-  const afterClose = previewMode ? false : realAfterClose
-  const votingOpen = previewMode
-    ? previewMode === 'live'
-    : settings.voting_open && !beforeOpen && !afterClose
+  const { opensAt, closesAt, beforeOpen, afterClose, votingOpen } = useVotingWindow(settings, now, previewMode)
 
-  useEffect(() => {
-    const tick = setInterval(() => setNow(new Date()), 1000)
-    return () => clearInterval(tick)
-  }, [])
-
-  const refresh = useCallback(async () => {
-    const [{ data: entryRows }, { data: settingsRow }] = await Promise.all([
-      supabase.from('entries').select('*').order('entry_number'),
-      supabase
-        .from('settings')
-        .select('voting_open, results_visible, voting_opens_at, voting_closes_at')
-        .single(),
-    ])
-    if (entryRows) setEntries(entryRows)
-    if (settingsRow) {
-      setSettings(settingsRow)
-      if (settingsRow.results_visible) {
-        const { data } = await supabase.rpc('get_results')
-        if (data) setResults(data)
-      }
-    }
-    setLoading(false)
-  }, [])
-
-  useEffect(() => {
-    const firstLoad = setTimeout(refresh, 0)
-    const interval = setInterval(refresh, 30_000)
-    return () => {
-      clearTimeout(firstLoad)
-      clearInterval(interval)
-    }
-  }, [refresh])
+  const refreshAll = useCallback(() => {
+    refreshSettings()
+    refreshEntries()
+    refreshResults()
+  }, [refreshSettings, refreshEntries, refreshResults])
 
   // Re-fetch the moment a window boundary passes so the UI flips immediately
   // instead of waiting out the 30-second poll.
   useEffect(() => {
     if (loading) return
-    const t = setTimeout(refresh, 0)
+    const t = setTimeout(refreshAll, 0)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [beforeOpen, afterClose])
 
-  useEffect(() => {
-    if (!session || pendingVote) return
-    supabase
-      .from('votes')
-      .select('entry_id')
-      .maybeSingle()
-      .then(({ data }) => setMyVote(data?.entry_id ?? null))
-  }, [session, pendingVote])
-
-  // The admin (matched by phone in the database) gets photo-upload buttons.
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      const admin = session ? (await supabase.rpc('is_admin')).data === true : false
-      if (!cancelled) setIsAdmin(admin)
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [session])
-
-  const flashToast = useCallback((message: string) => {
-    setToast(message)
-    setTimeout(() => setToast(null), 3000)
-  }, [])
-
   const submitVote = useCallback(
-    async (entry: Entry, userId: string, previous: string | null) => {
-      // The PK on votes.user_id makes this an insert-or-change-my-vote, never a second vote.
-      const { error } = await supabase
-        .from('votes')
-        .upsert({ user_id: userId, entry_id: entry.id }, { onConflict: 'user_id' })
+    async (entry: Entry, previous: string | null) => {
+      const { error } = await vote(entry.id)
       if (error) {
-        flashToast('Could not save your vote — voting may be closed.')
+        flash('Could not save your vote — voting may be closed.')
         return
       }
-      setMyVote(entry.id)
-      flashToast(
+      flash(
         previous
           ? `Vote changed to ${entry.theme || entry.street} ★`
           : `Vote cast for ${entry.theme || entry.street} ★`,
       )
     },
-    [flashToast],
+    [vote, flash],
   )
 
   // Apply the vote that opened the sign-in modal once auth completes.
@@ -164,7 +90,7 @@ export default function App() {
     if (!session || !pendingVote) return
     const entry = pendingVote
     ;(async () => {
-      await submitVote(entry, session.user.id, null)
+      await submitVote(entry, null)
       setPendingVote(null)
     })()
   }, [session, pendingVote, submitVote])
@@ -178,41 +104,13 @@ export default function App() {
     }
     if (entry.id === myVote) return
     setVoteBusy(true)
-    await submitVote(entry, session.user.id, myVote)
+    await submitVote(entry, myVote)
     setVoteBusy(false)
-  }
-
-  function handleSecretTap() {
-    const taps = secretTaps.current
-    window.clearTimeout(taps.timer)
-    taps.count += 1
-    if (taps.count >= 5) {
-      taps.count = 0
-      setShowAuth(true)
-      return
-    }
-    taps.timer = window.setTimeout(() => {
-      taps.count = 0
-    }, 1500)
   }
 
   // Ballot order: randomized so no float gets a positional advantage, with an
   // optional ?f=<entry number> override that floats one entry to the very top.
-  // The sort key mixes a per-load random seed with the entry id, so the order is
-  // random per visit yet stable across the 30-second refreshes (no mid-vote
-  // reshuffle).
-  const orderedEntries = useMemo(() => {
-    const sorted = [...entries].sort(
-      (a, b) => hashId(a.id, shuffleSeed) - hashId(b.id, shuffleSeed),
-    )
-    if (forcedFloat) {
-      const idx = sorted.findIndex((e) => String(e.entry_number) === forcedFloat)
-      if (idx > 0) sorted.unshift(sorted.splice(idx, 1)[0])
-    }
-    return sorted
-  }, [entries, forcedFloat, shuffleSeed])
-
-  const ticker = 'Worthington Hills ✦ 4th of July 2026 ✦ Fan Favorite ✦ One Neighbor, One Vote ✦ '
+  const orderedEntries = useShuffledOrder(entries, { getId: entryId, getPinKey: entryNumber })
 
   return (
     <div className="min-h-screen">
@@ -220,7 +118,7 @@ export default function App() {
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 pt-6">
         <div
           className="rise inline-block text-xs font-semibold tracking-[0.2em] text-fg/50 uppercase select-none"
-          onClick={handleSecretTap}
+          onClick={onSecretTap}
         >
           Worthington Hills Parade
         </div>
@@ -263,12 +161,12 @@ export default function App() {
           <div className="w-full lg:w-1/2">
             {!loading && beforeOpen && opensAt && (
               <div className="rise" style={{ animationDelay: '0.28s' }}>
-                <Countdown label="Voting opens in" target={opensAt} now={now} />
+                <Countdown label="Voting opens in" labelPrefix="★ " target={opensAt} now={now} />
               </div>
             )}
             {!loading && votingOpen && closesAt && (
               <div className="rise" style={{ animationDelay: '0.28s' }}>
-                <Countdown label="Voting closes in" target={closesAt} now={now} />
+                <Countdown label="Voting closes in" labelPrefix="★ " target={closesAt} now={now} />
               </div>
             )}
           </div>
@@ -280,16 +178,29 @@ export default function App() {
         )}
       </section>
 
-      {/* Ticker */}
-      <div className="marquee border-y border-fg/15 py-2.5" aria-hidden="true">
-        <div className="marquee-track font-display text-sm tracking-wide text-fg/60 italic">
-          <span>{ticker.repeat(4)}</span>
-          <span>{ticker.repeat(4)}</span>
-        </div>
-      </div>
+      <Marquee
+        text={TICKER}
+        className="border-y border-fg/15 py-2.5"
+        trackClassName="font-display text-sm tracking-wide text-fg/60 italic"
+      />
 
-      {/* Results (once revealed) */}
-      {settings.results_visible && results.length > 0 && <Results results={results} />}
+      {/* Results (once revealed). The SQL returns the top 3; the slice keeps
+          the page right against a database that hasn't had that migration yet. */}
+      {settings.results_visible && results.length > 0 && (
+        <Leaderboard
+          eyebrow="★ The results are in"
+          title="Fan Favorite"
+          rows={results.slice(0, 3).map((r) => ({
+            id: r.entry_id,
+            title: r.theme || r.street,
+            subtitle: r.street,
+            imageUrl: r.image_url,
+            imageAlt: `The ${r.theme} float by ${r.street}`,
+            icon: r.emoji,
+            count: r.vote_count,
+          }))}
+        />
+      )}
 
       {/* Ballot */}
       <main className="mx-auto w-full max-w-6xl px-5 py-14">
@@ -313,8 +224,8 @@ export default function App() {
                   mystery={beforeOpen}
                   onVote={castVote}
                   onAdminDone={(message, ok) => {
-                    flashToast(message)
-                    if (ok) refresh()
+                    flash(message)
+                    if (ok) refreshAll()
                   }}
                 />
               </div>
@@ -350,11 +261,7 @@ export default function App() {
         />
       )}
 
-      {toast && (
-        <div className="pop fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-fg px-6 py-3 text-sm font-medium text-bg shadow-xl">
-          {toast}
-        </div>
-      )}
+      <Toaster message={toast} />
     </div>
   )
 }

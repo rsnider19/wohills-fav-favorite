@@ -1,3 +1,5 @@
+import { VoteButton } from '@wohills/ui'
+import { VOTE_LABELS } from '../copy'
 import type { Entry } from '../types'
 import AdminEditButton from './AdminEditButton'
 import AdminPhotoButton from './AdminPhotoButton'
@@ -121,26 +123,16 @@ export default function EntryCard({
           </p>
         )}
 
-        <button
-          type="button"
-          disabled={busy || !votingOpen}
-          onClick={() => onVote(entry)}
-          className={`mt-auto rounded-full px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
-            isMyVote
-              ? 'bg-primary text-primary-fg'
-              : 'border border-fg/25 text-fg hover:border-fg hover:bg-fg hover:text-bg'
-          }`}
-        >
-          {isMyVote
-            ? 'Voted ✓'
-            : !votingOpen
-              ? beforeOpen
-                ? 'Voting opens soon'
-                : 'Voting closed'
-              : signedIn
-                ? 'Vote for this float'
-                : 'Sign in to vote'}
-        </button>
+        <VoteButton
+          isMyVote={isMyVote}
+          votingOpen={votingOpen}
+          beforeOpen={beforeOpen}
+          signedIn={signedIn}
+          busy={busy}
+          onVote={() => onVote(entry)}
+          labels={VOTE_LABELS}
+          className="mt-auto"
+        />
       </div>
     </article>
   )

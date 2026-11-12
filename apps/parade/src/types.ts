@@ -8,14 +8,7 @@ export interface Entry {
   image_url: string | null
 }
 
-export interface Settings {
-  voting_open: boolean
-  results_visible: boolean
-  /** ISO timestamps; null means no restriction on that side. Enforced by RLS. */
-  voting_opens_at: string | null
-  voting_closes_at: string | null
-}
-
+/** One row of public.get_results() (top 3 once results_visible is set). */
 export interface ResultRow {
   entry_id: string
   entry_number: number
