@@ -83,7 +83,7 @@ function startCensusStub() {
 
 const stub = process.env.LIGHTS_SMOKE_REAL_CENSUS ? null : await startCensusStub()
 const { data: savedSettings } = await service.from('settings').select('*').single()
-const created = { houseIds: [], paths: [], voters: [] }
+const created = { houseIds: [], paths: [], voters: [], users: [] }
 
 try {
   await step('lights schema is exposed: anon reads settings and approved houses', async () => {
@@ -172,6 +172,14 @@ try {
     assert.equal(error?.code, '23505')
   })
 
+  await step('the photo an entry shows cannot be deleted (no delete-and-reupload swap)', async () => {
+    const { data, error } = await fresh.client.storage.from('houses').remove([path])
+    assert.equal(error, null, error?.message)
+    assert.deepEqual(data, [])
+    const res = await fetch(anon.storage.from('houses').getPublicUrl(path).data.publicUrl)
+    assert.equal(res.status, 200, 'the photo is still served')
+  })
+
   await step('is_admin() is reachable through schema("public")', async () => {
     const { data, error } = await fresh.client.schema('public').rpc('is_admin')
     assert.equal(error, null, error?.message)
@@ -229,6 +237,28 @@ try {
     assert.deepEqual(mine.data, [{ house_id: SEED_APPROVED_OWNED_BY_0103 }])
   })
 
+  await step('an account without a phone (email sign-up) cannot vote, submit or geocode', async () => {
+    const sybil = createClient(url, anonKey, opts)
+    const { data, error } = await sybil.auth.signUp({ email: `smoke-${Date.now()}@example.test`, password: `pw-${crypto.randomUUID()}` })
+    assert.equal(error, null, error?.message)
+    created.users.push(data.user.id)
+    assert.ok(data.session, 'local email sign-up returns a session (confirmations are off locally)')
+    const vote = await sybil.from('votes').insert({ user_id: data.user.id, house_id: SEED_APPROVED_OWNED_BY_0103 })
+    assert.equal(vote.error?.code, '42501')
+    const upload = await sybil.storage.from('houses')
+      .upload(`${data.user.id}/sybil-${Date.now()}.jpg`, JPEG, { contentType: 'image/jpeg' })
+    assert.notEqual(upload.error, null, 'upload')
+    const photoUrl = fresh.client.storage.from('houses').getPublicUrl(path).data.publicUrl
+    const house = await sybil.from('houses').insert({ address: '7004 Northway Dr', lat: 40.1314, lng: -83.048, photo_url: photoUrl })
+    assert.equal(house.error?.code, '42501')
+    const geo = await fetch(`${url}/functions/v1/geocode`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${data.session.access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address: '1221 Candlewood Dr' }),
+    })
+    assert.equal(geo.status, 401)
+  })
+
   await step('reveal: top 3 with counts and ranks', async () => {
     await service.from('settings').update({ results_visible: true }).eq('id', true)
     const { data, error } = await anon.rpc('get_results')
@@ -243,6 +273,7 @@ try {
   if (created.houseIds.length) await service.from('houses').delete().in('id', created.houseIds)
   if (created.paths.length) await service.storage.from('houses').remove(created.paths)
   if (savedSettings) await service.from('settings').update(savedSettings).eq('id', true)
+  for (const id of created.users) await service.auth.admin.deleteUser(id)
   stub?.close()
 }
 console.log(`\n${passed} smoke checks passed`)

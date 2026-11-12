@@ -7,6 +7,9 @@
 -- Fairness model (same contract as the parade, see packages/core/README.md):
 --   * Phone-verified users only (Supabase phone OTP); one house per phone
 --     (unique houses.submitted_by) and one vote per phone (votes PK user_id).
+--     Every write policy also requires a phone on the caller's token
+--     (lights.caller_has_phone()), so email or anonymous accounts, which cost
+--     nothing to mint, can't submit or vote even if those providers are on.
 --   * Every window is evaluated against the database clock inside RLS.
 --   * Entries are pending until the admin approves them; only approved houses
 --     are public and only approved houses can receive votes. No self-votes.
@@ -126,6 +129,20 @@ as $$
   from lights.settings s
 $$;
 
+-- True when the caller's token carries a phone number (GoTrue only puts a
+-- confirmed phone there) and isn't an anonymous session. "One per phone" is
+-- only as strong as this: an email or anonymous account would otherwise be a
+-- free extra vote. Reads the signed JWT, like public.is_admin().
+create function lights.caller_has_phone()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce((select auth.jwt()) ->> 'phone', '') <> ''
+     and coalesce(((select auth.jwt()) ->> 'is_anonymous')::boolean, false) is false
+$$;
+
 create function lights.in_geofence(p_lat double precision, p_lng double precision)
 returns boolean
 language sql
@@ -213,9 +230,14 @@ create index votes_house_id_idx on lights.votes (house_id);
 -- Guards what RLS can't express (it can't compare old and new values):
 --   * only the admin (or the service role / SQL) changes `status`;
 --   * an owner's change to anything the public sees (address, pin, photo,
---     title) sends the entry back to `pending` for re-approval;
---   * an owner's photo_url must point into their own folder of the `houses`
---     bucket whenever it is set or changed;
+--     title) sends an approved entry back to `pending` for re-approval (a
+--     hidden entry stays hidden: editing must not put it back in the queue);
+--   * whenever an owner sets or changes photo_url it must be the public URL,
+--     on this project, of an object they already uploaded to their own folder
+--     of the `houses` bucket. The project origin comes from the token's
+--     issuer (<origin>/auth/v1). A look-alike path on another host would let
+--     the owner swap the image after approval, so it is refused, as is a URL
+--     to an object that doesn't exist yet (it could be uploaded later);
 --   * timestamps are server-set.
 -- Runs as the caller (security invoker), so current_user tells API callers
 -- (anon/authenticated) apart from the service role and migrations.
@@ -227,6 +249,8 @@ as $$
 declare
   is_api_user constant boolean := current_user in ('anon', 'authenticated');
   trusted constant boolean := not is_api_user or public.is_admin();
+  photo_prefix text;
+  photo_name text;
 begin
   if tg_op = 'INSERT' then
     new.created_at := now();
@@ -241,7 +265,7 @@ begin
       raise exception 'only the admin can change an entry''s status'
         using errcode = '42501';
     end if;
-    if not trusted and (
+    if not trusted and old.status = 'approved' and (
       new.address, new.lat, new.lng, new.photo_url, new.title
     ) is distinct from (
       old.address, old.lat, old.lng, old.photo_url, old.title
@@ -250,14 +274,24 @@ begin
     end if;
   end if;
 
-  if not trusted
-     and (tg_op = 'INSERT' or new.photo_url is distinct from old.photo_url)
-     and position(
-       '/storage/v1/object/public/houses/' || (select auth.uid())::text || '/'
-       in new.photo_url
-     ) = 0 then
-    raise exception 'photo_url must be a photo you uploaded to the houses bucket'
-      using errcode = '42501';
+  if not trusted and (tg_op = 'INSERT' or new.photo_url is distinct from old.photo_url) then
+    photo_prefix := regexp_replace(coalesce((select auth.jwt()) ->> 'iss', ''), '/auth/v1/?$', '')
+                    || '/storage/v1/object/public/houses/';
+    if left(new.photo_url, char_length(photo_prefix)) = photo_prefix then
+      photo_name := substr(new.photo_url, char_length(photo_prefix) + 1);
+    end if;
+    -- Runs as the caller, so storage.objects RLS limits the lookup to their
+    -- own folder anyway; the name pattern also rules out query strings,
+    -- fragments, `..` and nested folders.
+    if photo_prefix !~ '^https?://[^/]+/storage/'
+       or photo_name is null
+       or photo_name !~ ('^' || (select auth.uid())::text || '/[A-Za-z0-9][A-Za-z0-9._-]*$')
+       or not exists (
+         select 1 from storage.objects o where o.bucket_id = 'houses' and o.name = photo_name
+       ) then
+      raise exception 'photo_url must be a photo you uploaded to the houses bucket'
+        using errcode = '42501';
+    end if;
   end if;
 
   return new;
@@ -318,6 +352,7 @@ create policy "owners submit while submissions are open"
   to authenticated
   with check (
     submitted_by = (select auth.uid())
+    and (select lights.caller_has_phone())
     and status = 'pending'
     and (select lights.submissions_are_open())
     and lights.in_geofence(lat, lng)
@@ -368,6 +403,7 @@ create policy "cast own vote while voting is open"
   to authenticated
   with check (
     user_id = (select auth.uid())
+    and (select lights.caller_has_phone())
     and (select lights.voting_is_open())
     and exists (
       select 1 from lights.houses h
@@ -383,6 +419,7 @@ create policy "change own vote while voting is open"
   using (user_id = (select auth.uid()))
   with check (
     user_id = (select auth.uid())
+    and (select lights.caller_has_phone())
     and (select lights.voting_is_open())
     and exists (
       select 1 from lights.houses h
@@ -450,5 +487,6 @@ grant execute on function lights.submissions_are_open() to anon, authenticated;
 grant execute on function lights.voting_is_open() to anon, authenticated;
 grant execute on function lights.owner_edits_allowed() to anon, authenticated;
 grant execute on function lights.in_geofence(double precision, double precision) to anon, authenticated;
+grant execute on function lights.caller_has_phone() to anon, authenticated;
 grant execute on function lights.normalize_address(text) to anon, authenticated;
 grant execute on function lights.get_results() to anon, authenticated;

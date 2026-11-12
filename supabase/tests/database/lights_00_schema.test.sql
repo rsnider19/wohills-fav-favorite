@@ -2,7 +2,7 @@
 -- guard that the parade's public objects are unchanged.
 begin;
 \ir lights_fixtures.psql
-select plan(26);
+select plan(32);
 
 select has_schema('lights');
 select tables_are('lights', array['settings', 'houses', 'votes']);
@@ -21,6 +21,33 @@ select is((select count(*)::int from pg_proc p
              and (p.proacl is null or exists (
                select 1 from aclexplode(p.proacl) a where a.grantee = 0 and a.privilege_type = 'EXECUTE'))),
   0, 'no lights function is executable by PUBLIC');
+
+select is((select array_agg(p.proname::text order by p.proname) from pg_proc p
+           where p.pronamespace = 'lights'::regnamespace and p.prosecdef),
+  array['get_results'], 'get_results is the only security definer function in lights');
+select is((select count(*)::int from pg_proc p
+           where p.pronamespace = 'lights'::regnamespace
+             and not coalesce(p.proconfig @> array['search_path=""'], false)),
+  0, 'every lights function pins an empty search_path');
+select is((select count(*)::int from information_schema.role_table_grants
+           where table_schema = 'lights' and grantee = 'PUBLIC'),
+  0, 'no lights table privilege is granted to PUBLIC');
+select ok(not has_sequence_privilege('anon', 'lights.houses_entry_number_seq', 'usage,select,update')
+      and not has_sequence_privilege('authenticated', 'lights.houses_entry_number_seq', 'usage,select,update'),
+  'API roles cannot touch the entry_number sequence');
+select is((select count(*)::int from pg_policies
+           where schemaname = 'storage' and tablename = 'objects' and policyname like 'lights: %'
+             and position($q$bucket_id = 'houses'::text$q$ in coalesce(qual, '') || coalesce(with_check, '')) = 0),
+  0, 'every lights storage policy is scoped to the houses bucket');
+select is((select array_agg(x order by n)::text from (
+  select 1 n, (set_config('request.jwt.claims', '{"phone":"15550000005","is_anonymous":false}', true) is not null
+               and lights.caller_has_phone()) x
+  union all select 2, (set_config('request.jwt.claims', '{"phone":"","email":"a@b.c"}', true) is not null
+               and lights.caller_has_phone())
+  union all select 3, (set_config('request.jwt.claims', '{"phone":"15550000005","is_anonymous":true}', true) is not null
+               and lights.caller_has_phone())
+  union all select 4, (set_config('request.jwt.claims', '{}', true) is not null and lights.caller_has_phone())
+) t), '{t,f,f,f}', 'caller_has_phone: phone yes; email, anonymous or no claims no');
 
 -- Settings ------------------------------------------------------------------------------
 select is((select count(*)::int from lights.settings), 1, 'exactly one settings row');

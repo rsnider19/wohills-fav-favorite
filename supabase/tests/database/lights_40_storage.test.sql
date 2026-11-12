@@ -3,7 +3,7 @@
 -- (supabase/tests/lights-smoke.mjs) covers the real upload path.
 begin;
 \ir lights_fixtures.psql
-select plan(14);
+select plan(18);
 
 select is((select (public, file_size_limit, allowed_mime_types)::text from storage.buckets where id = 'houses'),
   '(t,10485760,"{image/jpeg,image/png,image/webp}")', 'houses bucket: public, 10 MiB, jpeg/png/webp');
@@ -83,6 +83,36 @@ delete from storage.objects where bucket_id = 'houses' and name = '00000000-0000
 reset role;
 select is((select count(*)::int from storage.objects where bucket_id = 'houses'), 1,
   'the admin deletes any object');
+
+-- Other people's photos and the photo an entry shows ---------------------------------------
+select tests.phase('submissions');
+insert into storage.objects (bucket_id, name) values
+  ('houses', '00000000-0000-4000-8000-00000000000a/theirs.jpg'),
+  ('houses', '00000000-0000-4000-8000-00000000000c/shown.jpg'),
+  ('houses', '00000000-0000-4000-8000-00000000000c/old.jpg');
+update lights.houses set photo_url = tests.photo('00000000-0000-4000-8000-00000000000c/shown.jpg')
+  where id = '00000000-0000-4000-9000-00000000000c';
+
+select tests.act_as('00000000-0000-4000-8000-0000000000e1');
+delete from storage.objects where bucket_id = 'houses' and name = '00000000-0000-4000-8000-00000000000a/theirs.jpg';
+reset role;
+select ok(exists (select 1 from storage.objects where name = '00000000-0000-4000-8000-00000000000a/theirs.jpg'),
+  'an owner cannot delete someone else''s photo');
+
+select tests.act_as('00000000-0000-4000-8000-00000000000c');
+delete from storage.objects where bucket_id = 'houses' and name like '00000000-0000-4000-8000-00000000000c/%';
+reset role;
+select ok(exists (select 1 from storage.objects where name = '00000000-0000-4000-8000-00000000000c/shown.jpg'),
+  'an owner cannot delete the photo their entry shows (no delete-and-reupload swap)');
+select ok(not exists (select 1 from storage.objects where name = '00000000-0000-4000-8000-00000000000c/old.jpg'),
+  'an owner can still delete a photo their entry no longer shows');
+
+select tests.act_as('00000000-0000-4000-8000-0000000000f1');
+select throws_ok($$
+  insert into storage.objects (bucket_id, name, owner_id)
+  values ('houses', '00000000-0000-4000-8000-0000000000f1/x.jpg', auth.uid()::text)
+$$, '42501', null, 'an account without a phone cannot upload');
+reset role;
 
 select * from finish();
 rollback;

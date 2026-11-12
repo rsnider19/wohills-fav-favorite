@@ -8,7 +8,10 @@
 --     photo can't be swapped in place after votes come in. Clients always
 --     upload to a new, unique path;
 --   * owners delete their own objects only while owner edits are allowed
---     (before voting opens), e.g. to clean up a replaced photo;
+--     (before voting opens), e.g. to clean up a replaced photo, and never the
+--     photo their entry currently shows: deleting it and uploading new content
+--     at the same path would swap an approved photo without re-approval;
+--   * owners need a phone on their token, like every other lights write;
 --   * the admin can upload, replace and delete anything in the bucket.
 -- Every policy names bucket_id = 'houses', so the parade's `floats` bucket is
 -- unaffected.
@@ -28,6 +31,7 @@ create policy "lights: owners upload house photos while submissions are open"
   with check (
     bucket_id = 'houses'
     and (storage.foldername(name))[1] = (select auth.uid())::text
+    and (select lights.caller_has_phone())
     and (select lights.submissions_are_open())
   );
 
@@ -41,13 +45,19 @@ create policy "lights: owners read their own house photos"
     and (storage.foldername(name))[1] = (select auth.uid())::text
   );
 
-create policy "lights: owners delete their own house photos before voting opens"
+create policy "lights: owners delete own house photos before voting opens"
   on storage.objects for delete
   to authenticated
   using (
     bucket_id = 'houses'
     and (storage.foldername(name))[1] = (select auth.uid())::text
     and (select lights.owner_edits_allowed())
+    and not exists (
+      select 1 from lights.houses h
+      where h.submitted_by = (select auth.uid())
+        and right(h.photo_url, char_length('/storage/v1/object/public/houses/' || objects.name))
+            = '/storage/v1/object/public/houses/' || objects.name
+    )
   );
 
 create policy "lights: admin uploads house photos"

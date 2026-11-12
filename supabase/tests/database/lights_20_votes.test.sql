@@ -2,7 +2,7 @@
 -- approved houses, no self-votes, and votes are private.
 begin;
 \ir lights_fixtures.psql
-select plan(22);
+select plan(24);
 
 select tests.phase('voting');
 
@@ -31,6 +31,25 @@ $$, '42501', null, 'nobody votes on someone else''s behalf');
 select throws_ok($$ delete from lights.votes $$, '42501', null,
   'votes cannot be deleted by voters');
 reset role;
+
+-- Phone-verified accounts only ------------------------------------------------------------
+select tests.act_as('00000000-0000-4000-8000-0000000000f1');
+select throws_ok($$
+  insert into lights.votes (user_id, house_id)
+  values (auth.uid(), '00000000-0000-4000-9000-00000000000a')
+$$, '42501', 'new row violates row-level security policy for table "votes"',
+  'an account without a phone (email or anonymous) cannot vote');
+reset role;
+-- A vote cast before the rule existed (as postgres); it can't be moved either.
+insert into lights.votes (user_id, house_id)
+  values ('00000000-0000-4000-8000-0000000000f1', '00000000-0000-4000-9000-00000000000a')
+  on conflict (user_id) do update set house_id = excluded.house_id;
+select tests.act_as('00000000-0000-4000-8000-0000000000f1');
+select throws_ok($$
+  update lights.votes set house_id = '00000000-0000-4000-9000-00000000000b'
+$$, '42501', null, 'an account without a phone cannot change a vote either');
+reset role;
+delete from lights.votes where user_id = '00000000-0000-4000-8000-0000000000f1';
 
 -- Only approved houses, never your own ---------------------------------------------------
 select tests.act_as('00000000-0000-4000-8000-0000000000e2');

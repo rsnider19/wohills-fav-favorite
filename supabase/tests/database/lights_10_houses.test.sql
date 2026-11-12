@@ -2,7 +2,15 @@
 -- address dedupe, moderation (status), and the owner edit lock.
 begin;
 \ir lights_fixtures.psql
-select plan(45);
+select plan(50);
+
+-- Photos the test users have "uploaded" (photo_url must name an existing object).
+insert into storage.objects (bucket_id, name) values
+  ('houses', '00000000-0000-4000-8000-0000000000e1/1.jpg'),
+  ('houses', '00000000-0000-4000-8000-0000000000e2/1.jpg'),
+  ('houses', '00000000-0000-4000-8000-0000000000e2/2.jpg'),
+  ('houses', '00000000-0000-4000-8000-00000000000a/2.jpg'),
+  ('houses', '00000000-0000-4000-8000-0000000000f1/1.jpg');
 
 -- Visibility ----------------------------------------------------------------------
 select tests.phase('submissions');
@@ -77,6 +85,24 @@ select throws_ok($$
 $$, '42501', 'photo_url must be a photo you uploaded to the houses bucket',
   'a submitter cannot use an outside photo URL');
 select throws_ok($$
+  insert into lights.houses (address, lat, lng, photo_url)
+  values ('7030 Blackstone Dr', 40.1370, -83.0590,
+          'https://evil.example/storage/v1/object/public/houses/00000000-0000-4000-8000-0000000000e1/1.jpg')
+$$, '42501', 'photo_url must be a photo you uploaded to the houses bucket',
+  'a submitter cannot use a look-alike photo path on another host (swappable after approval)');
+select throws_ok($$
+  insert into lights.houses (address, lat, lng, photo_url)
+  values ('7030 Blackstone Dr', 40.1370, -83.0590,
+          tests.photo('00000000-0000-4000-8000-0000000000e1/1.jpg?v=/../x'))
+$$, '42501', 'photo_url must be a photo you uploaded to the houses bucket',
+  'a photo URL with a query string or path tricks is refused');
+select throws_ok($$
+  insert into lights.houses (address, lat, lng, photo_url)
+  values ('7030 Blackstone Dr', 40.1370, -83.0590,
+          tests.photo('00000000-0000-4000-8000-0000000000e1/not-uploaded-yet.jpg'))
+$$, '42501', 'photo_url must be a photo you uploaded to the houses bucket',
+  'a submitter cannot point at a photo they have not uploaded (it could be filled in after approval)');
+select throws_ok($$
   insert into lights.houses (submitted_by, address, lat, lng, photo_url)
   values ('00000000-0000-4000-8000-0000000000e2', '7040 Blackstone Dr', 40.1370, -83.0590,
           'http://127.0.0.1:55321/storage/v1/object/public/houses/00000000-0000-4000-8000-0000000000e1/1.jpg')
@@ -88,6 +114,15 @@ select throws_ok($$
   insert into lights.houses (address, lat, lng, photo_url)
   values ('7050 Blackstone Dr', 40.1370, -83.0590, 'https://example.test/x.jpg')
 $$, '42501', null, 'anon cannot submit');
+reset role;
+
+select tests.act_as('00000000-0000-4000-8000-0000000000f1');
+select throws_ok($$
+  insert into lights.houses (address, lat, lng, photo_url)
+  values ('7050 Blackstone Dr', 40.1370, -83.0590,
+          tests.photo('00000000-0000-4000-8000-0000000000f1/1.jpg'))
+$$, '42501', 'new row violates row-level security policy for table "houses"',
+  'an account without a phone (email or anonymous) cannot submit');
 reset role;
 
 -- Submission window
@@ -197,6 +232,12 @@ select throws_ok($$
   update lights.houses set created_at = now() - interval '1 year' where id = '00000000-0000-4000-9000-00000000000a'
 $$, '42501', null, 'timestamps are not client-writable');
 reset role;
+
+select tests.act_as('00000000-0000-4000-8000-00000000000d');
+update lights.houses set title = 'Let me back in' where id = '00000000-0000-4000-9000-00000000000d';
+reset role;
+select is((select (status, title)::text from lights.houses where id = '00000000-0000-4000-9000-00000000000d'),
+  '(hidden,"Let me back in")', 'an owner edit leaves a hidden entry hidden (no way back into the queue)');
 
 select tests.act_as('00000000-0000-4000-8000-00000000000b');
 select lives_ok($$
