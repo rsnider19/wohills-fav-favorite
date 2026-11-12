@@ -133,7 +133,8 @@ Wiring the schema up:
   `grant usage on schema lights to anon, authenticated`, plus table, function and
   default privileges. RLS still does the real enforcement.
 - The lights client is `createClient(url, key, { db: { schema: 'lights' } })`.
-  `core`'s `SupabaseProvider` takes that client, so the shared hooks work unchanged.
+  `core`'s `SupabaseProvider` takes that client, so the shared hooks work unchanged
+  (`useIsAdmin` reaches `public.is_admin()` through `client.schema('public')`).
 - Generate types per schema: `supabase gen types --schema public,lights`.
 
 The fairness rules (votes PK on `user_id`, `voting_is_open()`, `results_visible`-gated
@@ -186,12 +187,15 @@ The site already uses Tailwind v4 `@theme`, which turns tokens into CSS custom p
 }
 ```
 
+M2 finalized the list. It adds `sunken`, `field`, `danger`, `scrim`, `--radius-field` and
+`--countdown-digit-width`; see `docs/milestones/M2.md`.
+
 ```css
 /* apps/parade/src/index.css */
 @import "tailwindcss";
 @import "@wohills/ui/tokens.css";
 @import "@wohills/ui/motion.css";
-@source "../../../packages/ui/src";   /* Tailwind must scan the package for classes */
+/* No @source needed: tokens.css declares `@source "./"` for the package (M2, D4). */
 
 @theme {
   --color-bg: #f5f0e4;        /* was paper */
@@ -421,9 +425,9 @@ Today is Nov 12. The contest dates set three hard gates:
 ⚠️ **Gate 1 is 16 days out**, so the schedule is tight:
 
 - M3 runs in parallel with M1/M2.
-- M2 is scoped to what lights needs before Nov 28 (phone auth, dialog, countdown, image
-  pipeline, data hooks, tokens). The rest of the parade's extraction, along with the
-  screenshot-parity work, can slip to after Nov 28 without blocking anything.
+- M2 is planned in full ([`docs/milestones/M2.md`](milestones/M2.md)), with the
+  lights-critical extractions (tokens, phone auth, dialog, image pipeline, data hooks,
+  countdown) ordered first.
 - **H must come off hold by about Nov 23** to leave time for DNS and the domain before
   submissions open.
 
@@ -443,6 +447,7 @@ Today is Nov 12. The contest dates set three hard gates:
   preview serves the parade identically to production.
 
 ### M2: Shared packages + token contract
+- Spec: [`docs/milestones/M2.md`](milestones/M2.md).
 - Create `@wohills/core` and `@wohills/ui` and extract everything in the table in §3.
 - Convert the parade to semantic tokens (`paper→bg`, `card→surface`, `ink→fg`,
   `red→primary`, `cobalt→accent`).

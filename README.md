@@ -38,6 +38,10 @@ npm install
 npm run dev       # http://localhost:5173
 ```
 
+Run `npm test` for the shared packages' unit tests (vitest). `config.toml` uses
+`[local_smtp]`, which Supabase CLI 3.x requires (2.122+ also accepts it). If your
+installed CLI is older, use `npx --yes supabase@3.1.0 start`.
+
 Ports are set in `supabase/config.toml` in the 55xxx range to avoid colliding with
 other local Supabase projects (which default to 54xxx).
 
@@ -184,13 +188,13 @@ apps/parade/                         the 4th of July parade site (Vite app)
   scripts/seed-floats.mjs            placeholder float content (preview only)
   scripts/seed-float-images.mjs      placeholder float photos (preview only)
   src/App.tsx                        app shell, vote logic, settings polling
-  src/components/PhoneAuth.tsx       phone → 6-digit code sign-in modal
   src/components/EntryCard.tsx       one float on the ballot
   src/components/AdminPhotoButton.tsx day-of photo upload (admin only)
   src/components/AdminEditButton.tsx  day-of float text edits (admin only)
-  src/components/Countdown.tsx       opens-in / closes-in timer
-  src/components/Results.tsx         reveal-day leaderboard
+  src/copy.ts                         parade wording for the shared components
   src/lib/supabase.ts                client init from VITE_* env vars
+packages/core/                       @wohills/core: Supabase hooks, phone, image pipeline, directions (no styling)
+packages/ui/                         @wohills/ui: token contract (tokens.css), motion.css, shared components
 supabase/                            shared Supabase project (all contests)
   config.toml                        local stack config (55xxx ports, test OTPs)
   migrations/20260610000000_init.sql schema, RLS policies, get_results()
@@ -200,6 +204,8 @@ supabase/                            shared Supabase project (all contests)
                                      theme/street rename + image_url
   migrations/20260613000000_admin_uploads.sql
                                      admin_config, is_admin(), photo-upload RLS
+  migrations/20261112120000_parade_get_results_top3.sql
+                                     get_results() returns the top 3 only
   seed.sql                           parade floats (theme, street, photo)
 docs/                                plan and per-milestone specs
 package.json                         npm workspaces root (apps/*, packages/*)

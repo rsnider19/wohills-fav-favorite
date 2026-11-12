@@ -1,0 +1,36 @@
+/* @wohills/ui token contract. Shared components only use these semantic names.
+   Each app overrides values in its own @theme block after importing this file
+   (a later @theme declaration wins). Neutral defaults keep components usable unthemed. */
+
+/* Importing this file also makes Tailwind scan the package for class names.
+   @source paths resolve relative to this file. */
+@source "./";
+@source not "./**/*.test.ts";
+
+@theme {
+  --color-bg: #ffffff; /* page background */
+  --color-sunken: #ececec; /* recessed bands and placeholders */
+  --color-surface: #f7f7f7; /* cards, dialogs, timer */
+  --color-field: #ffffff; /* text input background */
+  --color-fg: #111111; /* body text; also inverse surfaces (toast, primary buttons) */
+  --color-primary: #2563eb; /* eyebrows, winner, "your pick", hover */
+  --color-primary-fg: #ffffff; /* text on primary */
+  --color-accent: #9333ea;
+  --color-danger: #b91c1c; /* error text */
+  --color-scrim: #000000; /* dialog backdrop, used at /50 */
+  --color-glow: transparent; /* lights uses this heavily; parade leaves it off */
+
+  --font-display: Georgia, serif;
+  --font-sans: system-ui, sans-serif;
+
+  --radius-card: 1rem;
+  --radius-dialog: 1.5rem;
+  --radius-field: 0.75rem;
+
+  --shadow-card: none;
+  --shadow-card-hover: 0 16px 40px -20px rgb(0 0 0 / 0.35);
+  --shadow-selected: 0 16px 40px -12px rgb(0 0 0 / 0.45);
+
+  /* Fixed width per countdown digit so proportional figures don't jitter. */
+  --countdown-digit-width: 0.7em;
+}
