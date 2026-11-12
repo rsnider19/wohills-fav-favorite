@@ -8,10 +8,10 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev -w apps/parade",
+    "dev": "npm run dev -w apps/parade --",
     "build": "npm run build --workspaces --if-present",
     "lint": "eslint .",
-    "preview": "npm run preview -w apps/parade",
+    "preview": "npm run preview -w apps/parade --",
     "set-window": "npm run set-window -w apps/parade",
     "seed-floats": "npm run seed-floats -w apps/parade",
     "seed-float-images": "npm run seed-float-images -w apps/parade"

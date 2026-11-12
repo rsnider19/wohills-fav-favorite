@@ -187,6 +187,7 @@ apps/parade/                         the 4th of July parade site (Vite app)
   src/components/PhoneAuth.tsx       phone → 6-digit code sign-in modal
   src/components/EntryCard.tsx       one float on the ballot
   src/components/AdminPhotoButton.tsx day-of photo upload (admin only)
+  src/components/AdminEditButton.tsx  day-of float text edits (admin only)
   src/components/Countdown.tsx       opens-in / closes-in timer
   src/components/Results.tsx         reveal-day leaderboard
   src/lib/supabase.ts                client init from VITE_* env vars
