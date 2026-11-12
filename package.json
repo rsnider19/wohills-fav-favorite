@@ -1,38 +1,28 @@
 {
-  "name": "wh-4th-fan-vote",
+  "name": "wohills-contests",
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "npm run dev -w apps/parade",
+    "build": "npm run build --workspaces --if-present",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "deploy": "npm run build && wrangler deploy",
-    "set-window": "node scripts/set-voting-window.mjs",
-    "seed-floats": "node scripts/seed-floats.mjs",
-    "seed-float-images": "node scripts/seed-float-images.mjs"
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.108.1",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "preview": "npm run preview -w apps/parade",
+    "set-window": "npm run set-window -w apps/parade",
+    "seed-floats": "npm run seed-floats -w apps/parade",
+    "seed-float-images": "npm run seed-float-images -w apps/parade"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@tailwindcss/vite": "^4.3.0",
-    "@types/node": "^24.12.3",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
-    "tailwindcss": "^4.3.0",
     "typescript": "~6.0.2",
-    "typescript-eslint": "^8.59.2",
-    "vite": "^8.0.12",
-    "wrangler": "^4.99.0"
+    "typescript-eslint": "^8.59.2"
   }
 }
