@@ -30,10 +30,10 @@ doesn't pay for itself. Turborepo can be added later without restructuring.
 .
 ├── apps/
 │   ├── parade/                  # today's site, moved as-is
-│   │   ├── src/  index.html  vite.config.ts  vercel.json  public/
+│   │   ├── src/  index.html  vite.config.ts  wrangler.jsonc  public/
 │   │   └── scripts/             # seed-floats, seed-float-images
 │   └── lights/
-│       └── src/  index.html  vite.config.ts  vercel.json  public/
+│       └── src/  index.html  vite.config.ts  wrangler.jsonc  public/
 ├── supabase/                    # ONE shared project: parade in `public`, lights in `lights`
 ├── packages/
 │   ├── core/                    # @wohills/core: logic, no styling
@@ -63,12 +63,42 @@ build step. Each app's Vite compiles them:
 }
 ```
 
-**Deploys.** There will be two Vercel projects on the same repo, with Root Directory set
-to `apps/parade` and `apps/lights`. Each gets an "Ignored Build Step" that skips the build
-unless its app or `packages/` changed. ⚠️ The parade's Vercel project root directory must
-be changed **in the same window** that the move merges, or the live parade site's next
-deploy breaks. (The README still describes Cloudflare/wrangler; Vercel is what actually
-deploys now, so `wrangler.jsonc` and the deploy script can be retired in M1.)
+### Hosting: Cloudflare Workers for both sites, deployed by Workers Builds (decided)
+
+Each app is a Worker with static assets: `wrangler.jsonc` with
+`assets.directory: "./dist"` and `not_found_handling: "single-page-application"`. That's
+the config the parade already has at the repo root. Both Workers are connected to this
+repo through **Workers Builds**, Cloudflare's own Git integration, so no deploy secrets
+live in GitHub.
+
+| | `apps/parade` | `apps/lights` |
+|---|---|---|
+| Worker name | `wh-4th-fan-vote` (existing) | `wh-holiday-lights` |
+| Root directory | `apps/parade` | `apps/lights` |
+| Build watch paths | `apps/parade/*`, `packages/*` | `apps/lights/*`, `packages/*` |
+| Build command | `npm run build` | `npm run build` |
+| Deploy command | `npx wrangler deploy` | `npx wrangler deploy` |
+| Custom domain | `july-4-fan-favorite.worthingtonhills.org` | `holiday-lights.worthingtonhills.org` |
+
+Things to get right:
+
+- **`VITE_*` values are build-time.** `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` go in
+  each Worker's **Build → Variables**, not its runtime variables, or Vite bakes in
+  `undefined`. Both apps use the same values (shared project); lights selects the
+  `lights` schema in code.
+- **Workspace install.** With the root directory set to an app, confirm in M1 that the
+  build installs from the root `package-lock.json` so `@wohills/*` resolve. If it
+  doesn't, the build command becomes
+  `cd ../.. && npm ci && npm run build -w apps/<app>`.
+- **Previews.** Non-production branch builds get a preview URL, so each PR gets
+  per-app previews the way Vercel provides them today.
+- **Custom domains** on a Worker require `worthingtonhills.org` to use Cloudflare DNS.
+  If the zone is hosted elsewhere today, moving it is an M1 (parade) / M8 (lights)
+  prerequisite.
+- **Parade cutover from Vercel** (M1): deploy the Worker, verify it on its
+  `workers.dev` URL, attach the custom domain (which repoints DNS away from Vercel),
+  then disconnect the Vercel project and delete `vercel.json` / `.vercelignore`. The
+  parade site is in its post-reveal state, so a brief DNS overlap is harmless.
 
 ### Supabase: one shared project, one Postgres schema per contest (decided)
 
@@ -381,12 +411,14 @@ with M2.
 
 ### M1: Monorepo conversion (no behavior change)
 - npm workspaces; move the current app to `apps/parade` (src, public, scripts,
-  vite/ts/vercel config). `supabase/` stays at the repo root because it becomes the
-  shared project. Root `tsconfig.base.json` + shared eslint.
-- Retire `wrangler.jsonc` / `npm run deploy`, update the README.
-- Repoint the parade Vercel project's Root Directory; add the ignored-build-step.
-- **Done when:** `npm run build -w apps/parade` is green and the deployed parade site is
-  identical.
+  vite/ts config, `wrangler.jsonc`). `supabase/` stays at the repo root because it
+  becomes the shared project. Root `tsconfig.base.json` + shared eslint.
+- Connect the `wh-4th-fan-vote` Worker to the repo with Workers Builds (settings in §1)
+  and verify the workspace install.
+- Cut the parade over from Vercel to Cloudflare (§1 cutover steps). Remove
+  `vercel.json` / `.vercelignore` and update the README's deploy section.
+- **Done when:** a push to `main` deploys the parade via Workers Builds, the custom
+  domain serves it from Cloudflare identically, and Vercel is disconnected.
 
 ### M2: Shared packages + token contract
 - Create `@wohills/core` and `@wohills/ui` and extract everything in the table in §3.
@@ -444,7 +476,8 @@ with M2.
   closed → revealed) using the admin preview toggle.
 
 ### M8: Launch hardening
-- Domain **`holiday-lights.worthingtonhills.org`**, OG image.
+- Create the `wh-holiday-lights` Worker with Workers Builds; attach the custom domain
+  **`holiday-lights.worthingtonhills.org`**. OG image.
 - Expose the `lights` schema on hosted. Revisit the SMS rate limits, which are now
   shared by both sites.
 - `contest-admin` runbook for windows/reveal/admin phone.
@@ -472,5 +505,7 @@ with M2.
 | 5 | Windows | **Overlapping**: owner edits/withdrawals lock when voting opens (§4) |
 | 6 | Geofence | **Derived from map data by Claude, confirmed by you** (M3) |
 | 7 | Domain | **`holiday-lights.worthingtonhills.org`** |
+| 8 | Hosting | **Cloudflare Workers for both sites** (parade moves off Vercel), deployed by **Workers Builds** (§1) |
 
-Still needed before M8: the actual submission and voting dates.
+Still needed: whether `worthingtonhills.org` DNS is already on Cloudflare (needed in
+M1), and the actual submission and voting dates (needed before M8).
