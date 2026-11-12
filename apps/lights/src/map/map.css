@@ -31,3 +31,73 @@
 .maplibregl-ctrl-attrib-button {
   filter: invert(1);
 }
+
+/* ---------------------------------------------------------------------------------------
+   The browse map's bulbs (M6). Each house is a 44px button holding a C9 bulb in its
+   [data-bulb] color, with a soft halo behind it (a gradient, not a filter: cheap to
+   repaint while the map moves). The picked bulb grows, gets a warm-white ring and its
+   halo pulses once every 1.6s (opacity and scale only). Reduced motion and the pause
+   switch stop the pulse (effects.css section 12) and leave it lit.
+   ------------------------------------------------------------------------------------- */
+[data-slot="map-bulb"] {
+  display: flex;
+  width: 44px;
+  height: 44px;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+[data-slot="map-bulb"]::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 40px;
+  height: 40px;
+  margin-left: -20px;
+  border-radius: 999px;
+  pointer-events: none;
+  background: radial-gradient(circle, color-mix(in srgb, var(--bulb) 55%, transparent) 0%, color-mix(in srgb, var(--bulb) 0%, transparent) 70%);
+}
+[data-slot="map-bulb"] svg {
+  position: relative;
+  transform-origin: 50% 100%;
+}
+[data-slot="map-bulb"] .bulb-socket { fill: #1f7a3e; }
+[data-slot="map-bulb"] .bulb-glass { fill: var(--bulb); stroke: rgb(5 6 13 / 0.6); stroke-width: 0.6; }
+[data-slot="map-bulb"] .bulb-shine { fill: #fff3d6; fill-opacity: 0.8; }
+[data-slot="map-bulb"][data-selected] { z-index: 2; }
+[data-slot="map-bulb"][data-selected] svg { transform: scale(1.35); }
+[data-slot="map-bulb"][data-selected] .bulb-glass { stroke: #fff3d6; stroke-width: 1.1; }
+[data-slot="map-bulb"][data-selected]::before {
+  bottom: -6px;
+  width: 64px;
+  height: 64px;
+  margin-left: -32px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--bulb) 75%, transparent) 0%, color-mix(in srgb, var(--bulb) 0%, transparent) 70%);
+  animation: bulb-pulse 1.6s ease-in-out infinite;
+}
+@keyframes bulb-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.8); }
+}
+/* Held while the map is scrolled out of view (MapView sets data-offscreen). More specific
+   than the rule above, which would otherwise win: this file loads after effects.css. */
+[data-slot="house-map"][data-offscreen] [data-slot="map-bulb"]::before { animation-play-state: paused; }
+[data-slot="map-bulb"]:focus-visible {
+  outline: 3px solid var(--color-fg);
+  outline-offset: -2px;
+  border-radius: 999px;
+}
+
+/* The browse map's credit sits top left (the house sheet covers the bottom). */
+.maplibregl-ctrl-top-left .maplibregl-ctrl-attrib { margin: 8px 0 0 8px; }
+/* The locate button's icon is dark like the zoom icons: invert it too. MapLibre turns it
+   blue while it follows you; keep that (the dot on the map is blue as well). */
+.maplibregl-ctrl-geolocate .maplibregl-ctrl-icon { filter: invert(1) sepia(0.2); }
+.maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-active .maplibregl-ctrl-icon,
+.maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-background .maplibregl-ctrl-icon { filter: none; }

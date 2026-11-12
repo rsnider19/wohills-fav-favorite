@@ -324,6 +324,7 @@ export const MY_ENTRY = {
       "The contest admin took this entry off the board. Editing it doesn't put it back by itself; the admin looks at hidden entries again.",
   },
   seeInLineup: 'See it in the lineup',
+  seeOnMap: 'See it on the map',
   canEdit: (votingOpensAt: Date | null) =>
     votingOpensAt
       ? `You can change or withdraw your entry until voting opens ${formatDay(votingOpensAt)}.`
@@ -396,4 +397,48 @@ export const ADMIN = {
   deleteBody:
     'This removes the entry, its photos and any votes for it, for good. The phone and the address can then enter again. To just take it off the board, keep it hidden.',
   deleteConfirm: 'Delete for good',
+}
+
+// ---------------------------------------------------------------------------------------
+// M6: the map and the navigate button.
+// ---------------------------------------------------------------------------------------
+
+export const VIEW_TOGGLE = {
+  label: 'Show the houses as',
+  lineup: 'Lineup',
+  map: 'Map',
+}
+
+export const NAVIGATE = {
+  apple: 'Apple Maps',
+  google: 'Google Maps',
+  /** The sheet's visible button text; the accessible name starts with it. */
+  text: 'Directions',
+  label: (address: string, app: string, newTab: boolean) =>
+    `Directions to ${address} (${app}${newTab ? ', opens in a new tab' : ''})`,
+  title: (app: string) => `Directions in ${app}`,
+}
+
+export const MAP = {
+  /** The map region and its canvas. */
+  region: 'Map of the houses',
+  canvas: 'Map of Worthington Hills. Use the arrow keys to move it.',
+  help: 'Each bulb on the map is a button for one house. The lineup lists the same houses.',
+  loading: 'Plugging in the map…',
+  failed: "The map didn't load. Check your connection, or see the houses in the lineup.",
+  showLineup: 'Show the lineup',
+  /** A marker's accessible name. */
+  marker: (n: number, title: string | null, address: string) => (title ? `No. ${n}: ${title}, ${address}` : `No. ${n}: ${address}`),
+  hint: 'Tap a bulb to see the house',
+  panelEyebrow: (n: number) => (n === 1 ? '★ 1 house on the map' : `★ ${n} houses on the map`),
+  panelTitle: 'Pick a bulb',
+  panelBody: 'Every bulb is a house in the lineup. Pick one to see it and get directions.',
+  close: 'Close',
+  /** The visitor's own entry isn't approved yet, so it isn't on the map. */
+  pendingNote: 'Your house lights up on the map as soon as the admin approves it.',
+  locate: {
+    denied: 'Location is off for this site. Turn it on in your browser to see where you are.',
+    unavailable: "We couldn't find your location right now.",
+    outside: "You're outside Worthington Hills, so the map stays on the neighborhood.",
+  },
 }

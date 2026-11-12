@@ -1,4 +1,4 @@
-import { Map as MapLibreMap, NavigationControl, setWorkerUrl } from 'maplibre-gl'
+import { AttributionControl, Map as MapLibreMap, NavigationControl, setWorkerUrl, type ControlPosition } from 'maplibre-gl'
 // MapLibre 6 runs its tile parsing in a module worker that it looks for next to its own
 // file. Bundled into our chunk it wouldn't find it, so Vite ships the worker as an asset
 // and we point MapLibre at it.
@@ -17,12 +17,15 @@ export interface CreateMapOptions {
   center: LatLng
   zoom: number
   label: string
+  /** Corner of the "© OpenStreetMap contributors © CARTO" credit. The browse map (M6) puts
+   *  it top left, where the house sheet never covers it. */
+  attribution?: ControlPosition
 }
 
 /** One dark MapLibre map, set up the same way for every map on the site (M5 pin, M6 browse):
  *  north up, no tilt or rotation, kept near the neighborhood, zoom buttons, compact
  *  attribution. */
-export function createMap({ container, box, center, zoom, label }: CreateMapOptions): MapLibreMap {
+export function createMap({ container, box, center, zoom, label, attribution = 'bottom-right' }: CreateMapOptions): MapLibreMap {
   const pan = padBox(box, PAN_PADDING_M)
   const map = new MapLibreMap({
     container,
@@ -38,10 +41,11 @@ export function createMap({ container, box, center, zoom, label }: CreateMapOpti
     dragRotate: false,
     pitchWithRotate: false,
     touchPitch: false,
-    attributionControl: { compact: true },
+    attributionControl: false,
   })
   map.touchZoomRotate.disableRotation()
   map.keyboard.disableRotation()
+  map.addControl(new AttributionControl({ compact: true }), attribution)
   map.addControl(new NavigationControl({ showCompass: false }), 'top-right')
   map.getCanvas().setAttribute('aria-label', label)
   return map

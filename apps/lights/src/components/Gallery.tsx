@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { useShuffledOrder } from '@wohills/core'
 import type { House } from '../types'
 import type { Phase } from '../lib/phase'
@@ -19,14 +19,21 @@ interface Props {
   emptyAction?: ReactNode
   /** Next to the title (M6: the gallery ⇄ map toggle). */
   toolbar?: ReactNode
-  /** Per-card props from later milestones (M6 navigate, M7 vote / lit / badge). */
+  /** Per-card props from later milestones (M6 navigate, M7 vote / lit / badge). Pass a
+   *  stable (useCallback) function: the cards only re-render when it or the houses change. */
   renderCard?: (house: House) => Pick<HouseCardProps, 'lit' | 'badge' | 'actions'>
+  /** 'map' shows `renderMap(houses in lineup order)` in place of the cards (M6). */
+  view?: 'lineup' | 'map'
+  renderMap?: (ordered: House[]) => ReactNode
 }
 
 /** The lineup: every approved house, shuffled per visit (?house=<number> pins one first). */
-export function Gallery({ houses, loading, phase, submissionsOpenAt, onRetry, emptyAction, toolbar, renderCard }: Props) {
+export function Gallery({ houses, loading, phase, submissionsOpenAt, onRetry, emptyAction, toolbar, renderCard, view = 'lineup', renderMap }: Props) {
   const ordered = useShuffledOrder(houses ?? [], { getId: houseId, getPinKey: houseNumber, pinParam: 'house' })
   const failed = !loading && houses === undefined
+  // The app re-renders every second (countdown). Building the cards' extra props here, once
+  // per list, keeps them identical between ticks, so the memoized cards don't re-render.
+  const extras = useMemo(() => new Map(ordered.map((h) => [h.id, renderCard?.(h)])), [ordered, renderCard])
 
   return (
     <section id="houses" data-slot="gallery" className="mx-auto w-full max-w-6xl scroll-mt-4 px-4 py-14 sm:px-6 sm:py-20">
@@ -81,11 +88,13 @@ export function Gallery({ houses, loading, phase, submissionsOpenAt, onRetry, em
           <p className="mx-auto mt-4 max-w-[40ch] text-fg/75">{GALLERY.emptyBody(phase ?? 'before', submissionsOpenAt)}</p>
           {emptyAction && <div className="mt-6">{emptyAction}</div>}
         </div>
+      ) : view === 'map' && renderMap ? (
+        renderMap(ordered)
       ) : (
         <ul className="grid list-none gap-6 p-0 sm:grid-cols-2 lg:grid-cols-3">
           {ordered.map((house, i) => (
             <li key={house.id} className="rise" style={{ animationDelay: `${Math.min(i, 8) * 0.06}s` }}>
-              <HouseCard house={house} {...renderCard?.(house)} />
+              <HouseCard house={house} {...extras.get(house.id)} />
             </li>
           ))}
         </ul>
