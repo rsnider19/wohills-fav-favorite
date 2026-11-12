@@ -298,8 +298,14 @@ SQL**, and the parade function can get the same one-line fix.
 - **Browse**: gallery (shuffled order, like the parade ballot) ⇄ **map** toggle. Every
   entry shows a **navigate** icon button.
 - **Vote** (during the voting window): same as the parade. One vote per phone, changeable
-  until close. It's available from the gallery card and from the map's entry sheet.
-- **Reveal**: when `results_visible` is flipped, show the top 3.
+  until close. It's available from the gallery card and from the map's entry sheet. M7
+  settled the details: a signed-out tap signs in and then casts that vote, no confirmation
+  for a change, the card lights only once the database has the vote, "Your house" on your own
+  entry, and a note if the house you voted for is hidden (`docs/milestones/M7.md`).
+- **Reveal**: when `results_visible` is flipped, show the top 3: a podium in the hero with
+  rank, vote counts ("Tied" plus the earlier-entry rule on equal counts) and directions, and
+  the "power surge" once per browser. Open pages pick it up on their next settings poll. The
+  admin's `?preview=results` shows a sample podium without counts (M7).
 - **Admin** (phone-matched, like the parade): moderation queue (approve/hide), edit an
   entry, replace a photo.
 
@@ -412,7 +418,9 @@ RLS highlights:
 - **Hero**: a light-string swag across the top, plus countdown digits drawn as lit bulb
   segments.
 - **Signature moment, the reveal**: the page "loses power" and dims, then #3, #2 and #1
-  surge on one at a time with a brownout flicker.
+  surge on one at a time with a brownout flicker. M7 fixed the timeline (7 s, measured at 2
+  flashes per second at most), Skip/Replay and the static fallback (`docs/milestones/M7.md`
+  D14, D15).
 - **Map**: dark basemap with markers as glowing bulbs in rotating colors; the selected
   marker pulses.
 - **Guardrails (non-negotiable)**: nothing flashes more than 3×/sec (WCAG 2.3.1,
@@ -515,6 +523,8 @@ Today is Nov 12. The contest dates set three hard gates:
   Playwright tests; the on-device check runs on H's HTTPS preview (M6 "Notes for M8").
 
 ### M7: Voting + reveal
+- Spec: [`docs/milestones/M7.md`](milestones/M7.md). No SQL change: M3's RLS and
+  `get_results()` already enforce every rule, and nothing leaks before the reveal.
 - Voting on cards and the map sheet (shared hooks/`VoteButton`), window countdowns.
 - The submitter's own house shows "Your house" in place of the vote button.
 - Late-approved entries appear mid-vote without a reload, via the existing 30s poll.
