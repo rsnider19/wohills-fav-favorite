@@ -24,3 +24,13 @@ export interface LightsSettings extends ContestSettings {
   geofence_min_lng: number
   geofence_max_lng: number
 }
+
+export type HouseStatus = 'pending' | 'approved' | 'hidden'
+
+/** A house with its moderation fields: the owner's own entry ("My entry") and every row
+ *  of the admin's queue. Only the owner and the admin can read non-approved rows (M3 D9). */
+export interface EntryRow extends House {
+  status: HouseStatus
+  created_at: string
+  updated_at: string
+}

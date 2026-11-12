@@ -1,0 +1,33 @@
+/* MapLibre in the lights theme. Loaded with the map chunk only. No animations here; if one
+   is ever added (M6 markers), keep it to the effects.css rules (cycles ≥ 1s): this file is
+   part of design.test.ts's motion checks. */
+.maplibregl-map {
+  font-family: var(--font-sans);
+  background: #0b0d18;
+}
+.maplibregl-ctrl-group {
+  background: rgb(14 17 38 / 0.92);
+  box-shadow: 0 0 0 1px rgb(255 194 26 / 0.35), 0 0 18px -6px rgb(255 194 26 / 0.6);
+}
+.maplibregl-ctrl-group button {
+  width: 44px;
+  height: 44px;
+}
+.maplibregl-ctrl-group button + button {
+  border-top-color: rgb(255 246 224 / 0.15);
+}
+/* The zoom icons are dark SVG backgrounds; invert them to warm white. */
+.maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+  filter: invert(1) sepia(0.2);
+}
+.maplibregl-ctrl-attrib,
+.maplibregl-ctrl-attrib.maplibregl-compact {
+  background: rgb(5 6 13 / 0.78);
+  color: rgb(255 246 224 / 0.8);
+}
+.maplibregl-ctrl-attrib a {
+  color: rgb(255 246 224 / 0.9);
+}
+.maplibregl-ctrl-attrib-button {
+  filter: invert(1);
+}

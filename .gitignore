@@ -34,3 +34,8 @@ supabase/.temp
 
 # Vercel
 .vercel
+
+# Playwright (npm run e2e:lights)
+test-results
+playwright-report
+blob-report

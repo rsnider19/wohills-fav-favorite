@@ -18,10 +18,12 @@
     "contest-admin": "node tools/contest-admin.mjs",
     "seed-floats": "npm run seed-floats -w apps/parade",
     "seed-float-images": "npm run seed-float-images -w apps/parade",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e:lights": "playwright test -c apps/lights/playwright.config.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.63.0",
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",

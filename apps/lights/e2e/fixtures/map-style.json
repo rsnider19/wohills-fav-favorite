@@ -1,0 +1,22 @@
+{
+  "version": 8,
+  "name": "E2E stand-in for CARTO Dark Matter (offline, deterministic)",
+  "sources": {
+    "streets": {
+      "type": "geojson",
+      "attribution": "Test streets",
+      "data": {
+        "type": "FeatureCollection",
+        "features": [
+          { "type": "Feature", "properties": { "name": "Candlewood Dr" }, "geometry": { "type": "LineString", "coordinates": [[-83.0560, 40.1228], [-83.0516, 40.1231], [-83.0470, 40.1236]] } },
+          { "type": "Feature", "properties": { "name": "Clubview Blvd" }, "geometry": { "type": "LineString", "coordinates": [[-83.0500, 40.1200], [-83.0423, 40.1247], [-83.0367, 40.1290]] } },
+          { "type": "Feature", "properties": { "name": "Blind Brook Dr" }, "geometry": { "type": "LineString", "coordinates": [[-83.0480, 40.1293], [-83.0440, 40.1293], [-83.0400, 40.1310]] } }
+        ]
+      }
+    }
+  },
+  "layers": [
+    { "id": "background", "type": "background", "paint": { "background-color": "#0b0d18" } },
+    { "id": "streets", "type": "line", "source": "streets", "paint": { "line-color": "#3a3f5c", "line-width": 6 } }
+  ]
+}

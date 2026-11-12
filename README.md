@@ -179,11 +179,29 @@ changing the database, add `?preview=before`, `submissions`, `voting`, `closed` 
 `results` to the URL. That works in `npm run dev:lights` and, on a real build, only for the
 signed-in admin. To change the real phase, use `npm run contest-admin -- --contest lights`.
 
+Pages: `/` (the lineup), `/enter` (enter a house, or "My entry" once you have one: status,
+edit and withdraw until voting opens) and `/admin` (the moderation queue: approve, hide, put
+back, edit, delete; the footer links to it for the admin phone). Make a local admin with
+`ADMIN_PHONE=15555550100 npm run contest-admin -- --contest lights`. The pin map is
+MapLibre with the CARTO Dark Matter basemap and loads only on the pin step.
+
 Other entrances: `/?signin` (or five quick taps on "Worthington Hills ★ 2026" in the hero)
 opens the phone sign-in before anything is open, e.g. for the admin. The bulb button in the
 header pauses every animation (remembered per device); visitors with "reduce motion" turned
 on never see animation, and the lights stay on. `?house=<number>` puts that house first in
 the lineup.
+
+End-to-end tests (Playwright, local stack only; they reset the lights data they touch and
+make 15555550100 the admin while they run):
+
+```sh
+eval "$(npx --yes supabase@3.1.0 status -o env)"   # API_URL, ANON_KEY, SERVICE_ROLE_KEY
+npm run e2e:lights                                  # starts its own dev server on :5175
+SHOOT=1 npm run e2e:lights -- screenshots           # the M5 screenshots
+```
+
+The tests stub the address lookup (`geocode` function) in the browser, because the local
+edge runtime can't reach the Census geocoder from a sandbox (M3 D19).
 
 `apps/lights/wrangler.jsonc` is staged for the Cloudflare move (hosting is on hold); nothing
 deploys the lights app yet, and Vercel still builds only the parade.
@@ -247,11 +265,18 @@ apps/parade/                         the 4th of July parade site (Vite app)
   src/lib/supabase.ts                client init from VITE_* env vars
 apps/lights/                         the holiday lights site (Vite app; local only for now)
   index.html  vite.config.ts  wrangler.jsonc  .env.example  public/favicon.svg
-  src/App.tsx                        app shell: settings, houses, phase, sign-in
+  src/App.tsx                        app shell: settings, houses, phase, sign-in, pages
   src/index.css  src/effects.css     theme tokens and every light effect (guardrails inside)
   src/copy.ts                        all lights wording
   src/lib/phase.ts                   contest phase + ?preview= logic (tested)
-  src/components/                    Header, Hero, LightString, Gallery, HouseCard, Footer
+  src/lib/route.ts                   /, /enter, /admin without a router library
+  src/lib/submit.ts  src/lib/entries.ts
+                                     entry writes (upload, then insert), my entry, moderation
+  src/map/                           MapLibre setup and the pin map (lazy chunk, shared with M6)
+  src/components/                    Header, Hero, LightString, Gallery, HouseCard, Footer, Page
+  src/components/entry/              /enter: the three-step form and "My entry"
+  src/components/admin/              /admin: the moderation queue
+  e2e/  playwright.config.ts         Playwright end-to-end tests (local stack only)
 packages/core/                       @wohills/core: Supabase hooks, phone, image pipeline, directions (no styling)
 packages/ui/                         @wohills/ui: token contract (tokens.css), motion.css, shared components
 supabase/                            shared Supabase project (all contests)

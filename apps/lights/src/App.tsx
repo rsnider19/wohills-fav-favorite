@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   useContestSettings,
   useIsAdmin,
@@ -19,20 +19,34 @@ import {
   previewSettings,
 } from './lib/phase'
 import { useApprovedHouses } from './lib/houses'
+import { useAdminEntries, useMyEntry } from './lib/entries'
 import { useMotion } from './lib/useMotion'
-import { AUTH_LABELS, heroTagline, TICKER, TOASTS } from './copy'
+import { onRouteClick, routeHref, useRoute, type Route } from './lib/route'
+import { AUTH_LABELS, ENTER, heroTagline, NAV, TICKER, TOASTS } from './copy'
 import { Header } from './components/Header'
 import { Hero } from './components/Hero'
 import { Gallery } from './components/Gallery'
 import { Footer } from './components/Footer'
+import { EntryPage } from './components/entry/EntryPage'
+import { AdminPage } from './components/admin/AdminPage'
 
 const toDate = (iso: string | null) => (iso ? new Date(iso) : null)
 
+/** An in-app link (no reload) styled by the caller. */
+function RouteLink({ to, className, children }: { to: Route; className: string; children: ReactNode }) {
+  return (
+    <a href={routeHref(to, window.location.search)} onClick={onRouteClick(to)} className={className}>
+      {children}
+    </a>
+  )
+}
+
 export default function App() {
   const supabase = useSupabase()
-  const { session } = useSession()
+  const { session, ready: sessionReady } = useSession()
   const now = useNow()
   const isAdmin = useIsAdmin(session)
+  const route = useRoute()
   const { toast, flash } = useToast()
   const { motionOn, toggleMotion } = useMotion()
   const {
@@ -41,6 +55,8 @@ export default function App() {
     refresh: refreshSettings,
   } = useContestSettings<LightsSettings>({ columns: LIGHTS_SETTINGS_COLUMNS, initial: DEFAULT_LIGHTS_SETTINGS })
   const { data: houses, loading: housesLoading, refresh: refreshHouses } = useApprovedHouses()
+  const { entry: myEntry, failed: myEntryFailed, refresh: refreshMyEntry } = useMyEntry(session)
+  const admin = useAdminEntries(isAdmin)
 
   // ?preview=<phase> shows another phase's look without touching the database:
   // always in `npm run dev`, and for the signed-in admin on a real build. Display only:
@@ -54,8 +70,11 @@ export default function App() {
   const status = contestStatus(settings, now)
 
   // Hidden sign-in for the admin before anything opens: /?signin or 5 taps on the hero eyebrow.
-  const [showAuth, setShowAuth] = useState(() => new URLSearchParams(window.location.search).has('signin'))
-  const onSecretTap = useSecretTaps(() => setShowAuth(true))
+  // The /enter page opens the same dialog with a line saying why.
+  const [auth, setAuth] = useState<{ notice?: string } | null>(() =>
+    new URLSearchParams(window.location.search).has('signin') ? {} : null,
+  )
+  const onSecretTap = useSecretTaps(() => setAuth({}))
 
   // Re-fetch the moment the phase flips (a window boundary passed) instead of waiting
   // out the 30-second poll.
@@ -87,6 +106,19 @@ export default function App() {
     submissionsOpen: status.submissionsOpen,
   })
 
+  // "Enter your house" while entries are open and this visitor has none; "My entry" once they do.
+  const enterCta = status.submissionsOpen && !myEntry
+  const heroActions = myEntry ? (
+    <RouteLink to="enter" className="btn-ghost">
+      {NAV.myEntry}
+    </RouteLink>
+  ) : enterCta ? (
+    <RouteLink to="enter" className="btn-bulb">
+      {NAV.enter}
+    </RouteLink>
+  ) : null
+  const waiting = admin.rows?.filter((r) => r.status === 'pending').length ?? 0
+
   return (
     <>
       <div data-slot="sky" aria-hidden="true" />
@@ -96,29 +128,88 @@ export default function App() {
           preview={previewing}
           motionOn={motionOn}
           onToggleMotion={toggleMotion}
+          actions={
+            myEntry && route !== 'enter' ? (
+              <RouteLink to="enter" className="header-link">
+                {NAV.myEntry}
+              </RouteLink>
+            ) : null
+          }
         />
-        <main className="grow">
-          <Hero status={status} pending={settingsLoading} tagline={tagline} now={now} onSecretTap={onSecretTap} />
-          <Marquee text={TICKER} className="ticker" />
-          <Gallery
-            houses={houses}
-            loading={housesLoading}
-            phase={phase}
-            submissionsOpenAt={entriesOpenAt}
-            onRetry={refreshHouses}
+        {route === 'enter' ? (
+          <EntryPage
+            session={session}
+            ready={sessionReady && !settingsLoading}
+            settings={settings}
+            status={status}
+            now={now}
+            entry={myEntry}
+            entryFailed={myEntryFailed}
+            refreshEntry={refreshMyEntry}
+            onChanged={refreshHouses}
+            onSignIn={() => setAuth({ notice: ENTER.signInNotice })}
+            flash={flash}
           />
-        </main>
-        <Footer phone={session?.user.phone ?? null} isAdmin={isAdmin} onSignOut={signOut} />
+        ) : route === 'admin' ? (
+          <AdminPage
+            session={session}
+            sessionReady={sessionReady}
+            rows={admin.rows}
+            failed={admin.failed}
+            setStatus={admin.setStatus}
+            refresh={admin.refresh}
+            onChanged={refreshHouses}
+            onSignIn={() => setAuth({})}
+            flash={flash}
+          />
+        ) : (
+          <main className="grow">
+            <Hero
+              status={status}
+              pending={settingsLoading}
+              tagline={tagline}
+              now={now}
+              onSecretTap={onSecretTap}
+              actions={heroActions}
+            />
+            <Marquee text={TICKER} className="ticker" />
+            <Gallery
+              houses={houses}
+              loading={housesLoading}
+              phase={phase}
+              submissionsOpenAt={entriesOpenAt}
+              onRetry={refreshHouses}
+              emptyAction={
+                enterCta ? (
+                  <RouteLink to="enter" className="btn-bulb">
+                    {NAV.enter}
+                  </RouteLink>
+                ) : null
+              }
+            />
+          </main>
+        )}
+        <Footer
+          phone={session?.user.phone ?? null}
+          isAdmin={isAdmin}
+          onSignOut={signOut}
+          adminLink={
+            <RouteLink to="admin" className="inline-flex min-h-11 items-center px-1 font-semibold text-primary underline underline-offset-4">
+              {NAV.moderation(waiting)}
+            </RouteLink>
+          }
+        />
       </div>
 
-      {showAuth && (
+      {auth && (
         <PhoneAuthDialog
           labels={AUTH_LABELS}
+          notice={auth.notice}
           onSuccess={() => {
-            setShowAuth(false)
+            setAuth(null)
             flash(TOASTS.signedIn)
           }}
-          onCancel={() => setShowAuth(false)}
+          onCancel={() => setAuth(null)}
         />
       )}
       <Toaster message={toast} />
