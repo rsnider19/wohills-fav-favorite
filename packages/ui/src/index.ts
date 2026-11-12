@@ -10,3 +10,4 @@ export {
   type VoteButtonState,
 } from './labels'
 export { PhotoPicker, type PhotoPickerProps } from './PhotoPicker'
+export { Countdown, type CountdownProps } from './Countdown'
