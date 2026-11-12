@@ -46,6 +46,7 @@ const CASES: [string, string, string, number, ReturnType<typeof apple | typeof g
   ['iPhone, Chrome', IPHONE('18_5', 'CriOS/141.0.7390.41 Mobile/15E148 Safari/604.1'), 'iPhone', 5, apple(false)],
   ['iPhone, Firefox on iOS 17.4', IPHONE('17_4', 'FxiOS/126.0 Mobile/15E148 Safari/605.1.15'), 'iPhone', 5, apple(true)],
   ['iPhone, Facebook in-app browser', IPHONE('18_5', 'Mobile/22F76 [FBAN/FBIOS;FBAV/500.0.0.0]'), 'iPhone', 5, apple(false)],
+  ['iPhone, iOS 18.4.1 (three-part version)', IPHONE('18_4_1', 'Version/18.4.1 Mobile/15E148 Safari/604.1'), 'iPhone', 5, apple(false)],
   ['iPad, mobile site', 'Mozilla/5.0 (iPad; CPU OS 17_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.7 Mobile/15E148 Safari/604.1', 'iPad', 5, apple(true)],
   ['iPadOS 18.4 desktop mode (says Mac)', MAC_SAFARI('18.4'), 'MacIntel', 5, apple(false)],
   ['iPadOS 17.6 desktop mode (says Mac)', MAC_SAFARI('17.6'), 'MacIntel', 5, apple(true)],
@@ -55,10 +56,12 @@ const CASES: [string, string, string, number, ReturnType<typeof apple | typeof g
   ['Android, Chrome', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36', 'Linux armv81', 5, google(true)],
   ['Android, Samsung Internet', 'Mozilla/5.0 (Linux; Android 14; SAMSUNG SM-S921B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/27.0 Chrome/125.0.0.0 Mobile Safari/537.36', 'Linux aarch64', 5, google(true)],
   ['Android, Firefox', 'Mozilla/5.0 (Android 15; Mobile; rv:144.0) Gecko/144.0 Firefox/144.0', 'Linux aarch64', 5, google(true)],
+  ['Android, Facebook in-app browser', 'Mozilla/5.0 (Linux; Android 14; Pixel 8 Build/AP2A.240805.005; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/141.0.0.0 Mobile Safari/537.36 [FB_IAB/FB4A;FBAV/480.0.0.0;]', 'Linux aarch64', 5, google(true)],
   ['Android tablet, Chrome', 'Mozilla/5.0 (Linux; Android 14; SM-X710) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', 'Linux aarch64', 10, google(true)],
   ['Windows, Chrome', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', 'Win32', 0, google(false)],
   ['Windows touch laptop, Edge', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0', 'Win32', 10, google(false)],
   ['Linux, Firefox', 'Mozilla/5.0 (X11; Linux x86_64; rv:144.0) Gecko/20100101 Firefox/144.0', 'Linux x86_64', 0, google(false)],
+  ['unknown agent (empty, no platform)', '', '', 0, google(false)],
   ['ChromeOS', 'Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', 'Linux x86_64', 10, google(false)],
 ]
 
