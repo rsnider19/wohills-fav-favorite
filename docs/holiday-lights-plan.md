@@ -308,7 +308,9 @@ SQL**, and the parade function can get the same one-line fix.
 People submit either while standing at the house or from inside it, so **device GPS
 is the best address signal we have**:
 
-1. Ask for geolocation when the photo is taken, drop a pin, and let the user drag to adjust.
+1. Ask for geolocation on a "Use my location" tap on the pin step (not unprompted: a
+   denied prompt is sticky on iOS), drop a pin, and let the user move the map under it to adjust
+   (M5 D6/D7).
 2. Typed address = display text, plus a fallback geocode when GPS is denied. Use the
    **US Census Geocoder** (free, no API key, good US residential coverage) through a
    tiny Supabase Edge Function. The function also re-checks that the point is inside
@@ -321,7 +323,8 @@ is the best address signal we have**:
 **MapLibre GL JS** with a free dark vector basemap (e.g. CARTO Dark Matter, which needs
 attribution), lazy-loaded so the gallery stays fast. Markers are HTML elements styled
 as glowing bulbs, so they theme with CSS like everything else. Tapping a marker opens a
-bottom sheet: photo, address, navigate, vote.
+bottom sheet: photo, address, navigate, vote. M5's pin-confirm map already uses MapLibre and
+CARTO Dark Matter through `apps/lights/src/map/`, which M6 extends (M5 D7/D8).
 
 ### Navigate button
 
@@ -486,13 +489,16 @@ Today is Nov 12. The contest dates set three hard gates:
   (phone and desktop) are on the PR for feedback.
 
 ### M5: Submission flow + moderation
+- Spec: [`docs/milestones/M5.md`](milestones/M5.md). Pages `/enter` and `/admin`.
 - Photo capture/pick, then shared resize/upload, address entry, GPS pin with drag
   confirm, geocode fallback, submit.
 - "My entry" view: shows pending/approved status; edit or withdraw until voting opens,
   read-only after that; submission-window states.
 - Admin moderation queue (approve/hide), edit, replace photo.
 - **Done when:** a test phone can submit from an iPhone and an Android, the admin
-  approves it, and it appears in the gallery. **This gates opening submissions.**
+  approves it, and it appears in the gallery. **This gates opening submissions.** Locally
+  this is proven by Playwright on an emulated touch phone; the real-device pass needs HTTPS
+  (geolocation), so it runs on H's preview URL (M5 "Notes", M8).
 
 ### M6: Map + navigation
 - Lazy-loaded MapLibre dark map, bulb markers, entry bottom sheet, gallery ⇄ map toggle.
