@@ -4,7 +4,7 @@ A fan-favorite voting site for the Worthington Hills 4th of July parade. Neighbo
 their phone number with a 6-digit code, vote for their favorite "Dynamic Duo," and can
 change that vote any time before voting closes — but can never vote twice.
 
-**Stack:** React + Vite + Tailwind (frontend) · Supabase (Postgres, phone OTP auth, RLS) · Cloudflare Workers (hosting)
+**Stack:** React + Vite + Tailwind (frontend) · Supabase (Postgres, phone OTP auth, RLS) · Vercel (hosting today; Cloudflare Workers config staged in apps/parade/wrangler.jsonc)
 
 ## Fairness model
 
@@ -28,6 +28,10 @@ change that vote any time before voting closes — but can never vote twice.
 
 Prereqs: Node 20+, Docker, [Supabase CLI](https://supabase.com/docs/guides/cli).
 
+This is an npm-workspaces monorepo. The parade site lives in `apps/parade`, and the shared
+Supabase project lives in `supabase/` at the repo root. Run every command below from the
+repo root.
+
 ```sh
 supabase start    # local stack on ports 55321 (API), 55322 (db), 55323 (Studio)
 npm install
@@ -37,8 +41,11 @@ npm run dev       # http://localhost:5173
 Ports are set in `supabase/config.toml` in the 55xxx range to avoid colliding with
 other local Supabase projects (which default to 54xxx).
 
-If your local keys differ from `.env` (they're printed by `supabase start` /
-`supabase status`), copy `.env.example` to `.env` and paste in the *Publishable* key.
+Env vars live in **`apps/parade/.env`** (not the repo root). Copy
+`apps/parade/.env.example` to `apps/parade/.env` and paste in the *Publishable* key
+printed by `supabase start` / `supabase status`. If you had a `.env` at the repo root
+from before the monorepo move, move it to `apps/parade/.env`; nothing reads the
+root one any more.
 
 ### Test sign-in (no SMS sent)
 
@@ -64,7 +71,7 @@ npm run set-window  # re-apply the voting window after every reset
 
 ### Float photos (day-of)
 
-Set `ADMIN_PHONE` in `.env` and run `npm run set-window`. When that person signs
+Set `ADMIN_PHONE` in `apps/parade/.env` and run `npm run set-window`. When that person signs
 in on the site (same phone-code flow as voting), every float card shows two
 admin buttons: **📷 Photo** (take or pick a photo — it's resized client-side,
 uploaded to the public `floats` storage bucket, and the entry is updated) and
@@ -88,7 +95,7 @@ simply render without a photo.
 
 ## Voting window
 
-The open/close times come from env vars in `.env` (ISO 8601 **with a timezone
+The open/close times come from env vars in `apps/parade/.env` (ISO 8601 **with a timezone
 offset**) and are applied to the database — where RLS enforces them — with:
 
 ```sh
@@ -98,6 +105,9 @@ SUPABASE_SERVICE_ROLE_KEY=<service-role key>   # local: `supabase status`; hoste
 
 npm run set-window
 ```
+
+The npm scripts run with `apps/parade` as their working directory, which is how they find
+`apps/parade/.env`. Run them through `npm run …`, not with `node` directly.
 
 Leave a bound empty for no restriction on that side. The site shows a live
 countdown to opening before the window and to closing during it; buttons disable
@@ -151,26 +161,36 @@ phone within half a minute.
 4. Recommended hardening for voting day (Dashboard → Authentication → Rate Limits):
    keep SMS rate limits modest to cap Twilio spend.
 
-### 2. Cloudflare
+### 2. Hosting (Vercel)
 
-**CI does this automatically**: every push to `main` builds and deploys via
-GitHub Actions (`.github/workflows/deploy.yml`), using the repo variables
-`VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` and the `CLOUDFLARE_API_TOKEN`
-secret. To deploy manually instead:
+The site deploys from Vercel's Git integration. Every push builds a preview, and
+`main` builds production. Vercel builds from the repo root, and the root
+`vercel.json` bridges to the workspace:
+`buildCommand: npm run build -w apps/parade`, `outputDirectory: apps/parade/dist`,
+plus an SPA rewrite to `/index.html`. `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`
+come from the Vercel project's environment variables. `.vercelignore` keeps any local
+`.env` out of the upload, because a local file would override them.
 
-```sh
-VITE_SUPABASE_URL=https://<ref>.supabase.co \
-VITE_SUPABASE_ANON_KEY=<publishable-key> \
-npm run deploy
-```
-
-(`npm run deploy` = build + `wrangler deploy`; run `npx wrangler login` first.)
-The publishable/anon key is safe to ship to browsers — RLS does the enforcement.
+`apps/parade/wrangler.jsonc` and `npm run deploy -w apps/parade` are staged for a
+later move to Cloudflare Workers. They are not in use yet.
 
 ## Project layout
 
 ```
-supabase/
+apps/parade/                         the 4th of July parade site (Vite app)
+  index.html  vite.config.ts  wrangler.jsonc  .env.example
+  public/og.png                      social share image
+  scripts/set-voting-window.mjs      applies VOTING_*_AT / ADMIN_PHONE to the database
+  scripts/seed-floats.mjs            placeholder float content (preview only)
+  scripts/seed-float-images.mjs      placeholder float photos (preview only)
+  src/App.tsx                        app shell, vote logic, settings polling
+  src/components/PhoneAuth.tsx       phone → 6-digit code sign-in modal
+  src/components/EntryCard.tsx       one float on the ballot
+  src/components/AdminPhotoButton.tsx day-of photo upload (admin only)
+  src/components/Countdown.tsx       opens-in / closes-in timer
+  src/components/Results.tsx         reveal-day leaderboard
+  src/lib/supabase.ts                client init from VITE_* env vars
+supabase/                            shared Supabase project (all contests)
   config.toml                        local stack config (55xxx ports, test OTPs)
   migrations/20260610000000_init.sql schema, RLS policies, get_results()
   migrations/20260611000000_voting_window.sql
@@ -180,15 +200,9 @@ supabase/
   migrations/20260613000000_admin_uploads.sql
                                      admin_config, is_admin(), photo-upload RLS
   seed.sql                           parade floats (theme, street, photo)
-scripts/
-  set-voting-window.mjs              applies VOTING_*_AT env vars to the database
-src/
-  App.tsx                            app shell, vote logic, settings polling
-  components/PhoneAuth.tsx           phone → 6-digit code sign-in modal
-  components/EntryCard.tsx           one float on the ballot
-  components/AdminPhotoButton.tsx    day-of photo upload (admin only)
-  components/Countdown.tsx           opens-in / closes-in timer
-  components/Results.tsx             reveal-day leaderboard
-  lib/supabase.ts                    client init from VITE_* env vars
-wrangler.jsonc                       Cloudflare Workers static-assets config
+docs/                                plan and per-milestone specs
+package.json                         npm workspaces root (apps/*, packages/*)
+tsconfig.base.json                   shared TypeScript options
+eslint.config.js                     shared lint config
+vercel.json                          Vercel bridge to apps/parade (until hosting moves)
 ```
