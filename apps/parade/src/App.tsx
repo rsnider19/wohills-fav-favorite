@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Session } from '@supabase/supabase-js'
+import { useSession } from '@wohills/core'
+import { PhoneAuthDialog } from '@wohills/ui'
 import { supabase } from './lib/supabase'
 import type { Entry, ResultRow, Settings } from './types'
 import badge from './assets/dynamic-duos-badge.png'
 import Countdown from './components/Countdown'
 import EntryCard from './components/EntryCard'
-import PhoneAuth from './components/PhoneAuth'
+import { AUTH_LABELS } from './copy'
 import Results from './components/Results'
 
 // Seeded 32-bit hash of an entry id (FNV-1a). Combined with a per-session seed
@@ -21,7 +22,7 @@ function hashId(id: string, seed: number): number {
 }
 
 export default function App() {
-  const [session, setSession] = useState<Session | null>(null)
+  const { session } = useSession()
   const [entries, setEntries] = useState<Entry[]>([])
   const [settings, setSettings] = useState<Settings>({
     voting_open: true,
@@ -29,7 +30,9 @@ export default function App() {
     voting_opens_at: null,
     voting_closes_at: null,
   })
-  const [myVote, setMyVote] = useState<string | null>(null)
+  const [storedVote, setMyVote] = useState<string | null>(null)
+  // Derived so signing out clears it without a setState-in-effect.
+  const myVote = session ? storedVote : null
   const [results, setResults] = useState<ResultRow[]>([])
   // Secret pre-voting sign-in (for the admin to upload photos): visiting
   // /?signin opens the modal, as does 5 quick taps on the header badge.
@@ -71,15 +74,6 @@ export default function App() {
   useEffect(() => {
     const tick = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(tick)
-  }, [])
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s)
-      if (!s) setMyVote(null)
-    })
-    return () => sub.subscription.unsubscribe()
   }, [])
 
   const refresh = useCallback(async () => {
@@ -339,8 +333,15 @@ export default function App() {
       </footer>
 
       {showAuth && (
-        <PhoneAuth
-          voteFor={pendingVote ? pendingVote.theme || pendingVote.street : undefined}
+        <PhoneAuthDialog
+          labels={AUTH_LABELS}
+          notice={
+            // JSX (not a template string) on purpose: separate text nodes shape
+            // exactly like the original markup, which the pixel-parity check needs.
+            pendingVote ? (
+              <>Your vote for {pendingVote.theme || pendingVote.street} will be cast as soon as you verify.</>
+            ) : undefined
+          }
           onSuccess={() => setShowAuth(false)}
           onCancel={() => {
             setShowAuth(false)

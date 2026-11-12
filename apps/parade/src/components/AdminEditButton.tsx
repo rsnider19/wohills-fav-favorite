@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { Dialog } from '@wohills/ui'
 import { supabase } from '../lib/supabase'
 import type { Entry } from '../types'
 
@@ -62,92 +63,81 @@ export default function AdminEditButton({ entry, onDone }: Props) {
       </button>
 
       {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/50 p-4 backdrop-blur-sm"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            className="pop w-full max-w-md rounded-dialog border border-fg/10 bg-surface p-8 text-fg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Edit ${entry.theme || entry.street}`}
-          >
-            <p className="mb-2 text-xs font-semibold tracking-[0.25em] text-primary uppercase">
-              ★ Edit float
-            </p>
-            <h2 className="mb-5 font-display text-3xl font-semibold">
-              {entry.theme || entry.street}
-            </h2>
-            <form onSubmit={save} className="space-y-4">
-              <div className="flex gap-3">
-                <div className="grow">
-                  <label className={labelClass} htmlFor={`theme-${entry.id}`}>
-                    Theme
-                  </label>
-                  <input
-                    id={`theme-${entry.id}`}
-                    placeholder="Revealed on parade day"
-                    value={form.theme}
-                    onChange={(e) => setForm({ ...form, theme: e.target.value })}
-                    className={inputClass}
-                  />
-                </div>
-                <div className="w-20">
-                  <label className={labelClass} htmlFor={`emoji-${entry.id}`}>
-                    Emoji
-                  </label>
-                  <input
-                    id={`emoji-${entry.id}`}
-                    value={form.emoji}
-                    onChange={(e) => setForm({ ...form, emoji: e.target.value })}
-                    className={`${inputClass} text-center`}
-                  />
-                </div>
-              </div>
-              <div>
-                <label className={labelClass} htmlFor={`street-${entry.id}`}>
-                  Street
+        <Dialog onClose={() => setOpen(false)} label={`Edit ${entry.theme || entry.street}`}>
+          <p className="mb-2 text-xs font-semibold tracking-[0.25em] text-primary uppercase">
+            ★ Edit float
+          </p>
+          <h2 className="mb-5 font-display text-3xl font-semibold">
+            {entry.theme || entry.street}
+          </h2>
+          <form onSubmit={save} className="space-y-4">
+            <div className="flex gap-3">
+              <div className="grow">
+                <label className={labelClass} htmlFor={`theme-${entry.id}`}>
+                  Theme
                 </label>
                 <input
-                  id={`street-${entry.id}`}
-                  required
-                  value={form.street}
-                  onChange={(e) => setForm({ ...form, street: e.target.value })}
+                  id={`theme-${entry.id}`}
+                  placeholder="Revealed on parade day"
+                  value={form.theme}
+                  onChange={(e) => setForm({ ...form, theme: e.target.value })}
                   className={inputClass}
                 />
               </div>
-              <div>
-                <label className={labelClass} htmlFor={`description-${entry.id}`}>
-                  Description
+              <div className="w-20">
+                <label className={labelClass} htmlFor={`emoji-${entry.id}`}>
+                  Emoji
                 </label>
-                <textarea
-                  id={`description-${entry.id}`}
-                  rows={3}
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  className={inputClass}
+                <input
+                  id={`emoji-${entry.id}`}
+                  value={form.emoji}
+                  onChange={(e) => setForm({ ...form, emoji: e.target.value })}
+                  className={`${inputClass} text-center`}
                 />
               </div>
-              <div className="flex gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="grow rounded-full border border-fg/25 px-4 py-2.5 text-sm font-semibold transition hover:border-fg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={busy}
-                  className="grow rounded-full bg-fg px-4 py-2.5 text-sm font-semibold text-bg transition hover:bg-primary disabled:opacity-50"
-                >
-                  {busy ? 'Saving…' : 'Save'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor={`street-${entry.id}`}>
+                Street
+              </label>
+              <input
+                id={`street-${entry.id}`}
+                required
+                value={form.street}
+                onChange={(e) => setForm({ ...form, street: e.target.value })}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor={`description-${entry.id}`}>
+                Description
+              </label>
+              <textarea
+                id={`description-${entry.id}`}
+                rows={3}
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                className={inputClass}
+              />
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="grow rounded-full border border-fg/25 px-4 py-2.5 text-sm font-semibold transition hover:border-fg"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={busy}
+                className="grow rounded-full bg-fg px-4 py-2.5 text-sm font-semibold text-bg transition hover:bg-primary disabled:opacity-50"
+              >
+                {busy ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </form>
+        </Dialog>
       )}
     </>
   )
