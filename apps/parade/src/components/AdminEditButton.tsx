@@ -10,8 +10,8 @@ interface Props {
 }
 
 const inputClass =
-  'w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-ink outline-none focus:border-ink'
-const labelClass = 'mb-1 block text-[10px] font-semibold tracking-[0.2em] text-ink/50 uppercase'
+  'w-full rounded-field border border-fg/20 bg-field px-3 py-2 text-fg outline-none focus:border-fg'
+const labelClass = 'mb-1 block text-[10px] font-semibold tracking-[0.2em] text-fg/50 uppercase'
 
 export default function AdminEditButton({ entry, onDone }: Props) {
   const [open, setOpen] = useState(false)
@@ -56,24 +56,24 @@ export default function AdminEditButton({ entry, onDone }: Props) {
       <button
         type="button"
         onClick={openModal}
-        className="rounded-full bg-ink/80 px-3 py-1.5 text-[11px] font-bold tracking-wider text-paper uppercase ring-1 ring-paper/25 backdrop-blur transition hover:bg-ink"
+        className="rounded-full bg-fg/80 px-3 py-1.5 text-[11px] font-bold tracking-wider text-bg uppercase ring-1 ring-bg/25 backdrop-blur transition hover:bg-fg"
       >
         ✏️ Edit
       </button>
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/50 p-4 backdrop-blur-sm"
           onClick={() => setOpen(false)}
         >
           <div
-            className="pop w-full max-w-md rounded-3xl border border-ink/10 bg-card p-8 text-ink shadow-2xl"
+            className="pop w-full max-w-md rounded-dialog border border-fg/10 bg-surface p-8 text-fg shadow-2xl"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-label={`Edit ${entry.theme || entry.street}`}
           >
-            <p className="mb-2 text-xs font-semibold tracking-[0.25em] text-red uppercase">
+            <p className="mb-2 text-xs font-semibold tracking-[0.25em] text-primary uppercase">
               ★ Edit float
             </p>
             <h2 className="mb-5 font-display text-3xl font-semibold">
@@ -133,14 +133,14 @@ export default function AdminEditButton({ entry, onDone }: Props) {
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="grow rounded-full border border-ink/25 px-4 py-2.5 text-sm font-semibold transition hover:border-ink"
+                  className="grow rounded-full border border-fg/25 px-4 py-2.5 text-sm font-semibold transition hover:border-fg"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={busy}
-                  className="grow rounded-full bg-ink px-4 py-2.5 text-sm font-semibold text-paper transition hover:bg-red disabled:opacity-50"
+                  className="grow rounded-full bg-fg px-4 py-2.5 text-sm font-semibold text-bg transition hover:bg-primary disabled:opacity-50"
                 >
                   {busy ? 'Saving…' : 'Save'}
                 </button>

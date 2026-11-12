@@ -141,7 +141,7 @@ export default function AdminPhotoButton({ entry, onDone }: Props) {
         type="button"
         disabled={busy}
         onClick={() => inputRef.current?.click()}
-        className="rounded-full bg-ink/80 px-3 py-1.5 text-[11px] font-bold tracking-wider text-paper uppercase ring-1 ring-paper/25 backdrop-blur transition hover:bg-ink disabled:opacity-60"
+        className="rounded-full bg-fg/80 px-3 py-1.5 text-[11px] font-bold tracking-wider text-bg uppercase ring-1 ring-bg/25 backdrop-blur transition hover:bg-fg disabled:opacity-60"
       >
         {busy ? 'Uploading…' : '📷 Photo'}
       </button>

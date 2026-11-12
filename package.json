@@ -14,7 +14,8 @@
     "preview": "npm run preview -w apps/parade --",
     "set-window": "npm run set-window -w apps/parade",
     "seed-floats": "npm run seed-floats -w apps/parade",
-    "seed-float-images": "npm run seed-float-images -w apps/parade"
+    "seed-float-images": "npm run seed-float-images -w apps/parade",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -23,6 +24,7 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
     "typescript": "~6.0.2",
-    "typescript-eslint": "^8.59.2"
+    "typescript-eslint": "^8.59.2",
+    "vitest": "^5.1.0"
   }
 }

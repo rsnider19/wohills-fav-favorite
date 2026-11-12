@@ -225,7 +225,7 @@ export default function App() {
       {/* Header */}
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 pt-6">
         <div
-          className="rise inline-block text-xs font-semibold tracking-[0.2em] text-ink/50 uppercase select-none"
+          className="rise inline-block text-xs font-semibold tracking-[0.2em] text-fg/50 uppercase select-none"
           onClick={handleSecretTap}
         >
           Worthington Hills Parade
@@ -237,7 +237,7 @@ export default function App() {
             onClick={() =>
               setPreviewMode((m) => (m === null ? 'prevote' : m === 'prevote' ? 'live' : null))
             }
-            className="rounded-full border border-ink/20 bg-card px-3 py-1 text-[0.65rem] font-semibold tracking-[0.15em] text-ink/60 uppercase"
+            className="rounded-full border border-fg/20 bg-surface px-3 py-1 text-[0.65rem] font-semibold tracking-[0.15em] text-fg/60 uppercase"
           >
             {previewMode === 'prevote'
               ? 'Preview: Pre-Vote'
@@ -251,7 +251,7 @@ export default function App() {
       {/* Hero */}
       <section className="mx-auto w-full max-w-6xl px-5 pt-14 pb-14 sm:pt-20">
         <p
-          className="rise mb-5 text-xs font-semibold tracking-[0.25em] text-red uppercase"
+          className="rise mb-5 text-xs font-semibold tracking-[0.25em] text-primary uppercase"
           style={{ animationDelay: '0.05s' }}
         >
           July 4th, 2026 ✦ Fan Favorite Ballot
@@ -280,15 +280,15 @@ export default function App() {
           </div>
         </div>
         {!loading && !votingOpen && !beforeOpen && !settings.results_visible && (
-          <div className="rise mt-8 inline-block rounded-xl border border-ink/15 bg-card px-5 py-3 text-sm text-ink/70">
+          <div className="rise mt-8 inline-block rounded-xl border border-fg/15 bg-surface px-5 py-3 text-sm text-fg/70">
             Voting is closed. Results will be announced soon — stay tuned.
           </div>
         )}
       </section>
 
       {/* Ticker */}
-      <div className="marquee border-y border-ink/15 py-2.5" aria-hidden="true">
-        <div className="marquee-track font-display text-sm tracking-wide text-ink/60 italic">
+      <div className="marquee border-y border-fg/15 py-2.5" aria-hidden="true">
+        <div className="marquee-track font-display text-sm tracking-wide text-fg/60 italic">
           <span>{ticker.repeat(4)}</span>
           <span>{ticker.repeat(4)}</span>
         </div>
@@ -299,11 +299,11 @@ export default function App() {
 
       {/* Ballot */}
       <main className="mx-auto w-full max-w-6xl px-5 py-14">
-        <h2 className="mb-8 font-display text-3xl font-semibold text-ink sm:text-4xl">
+        <h2 className="mb-8 font-display text-3xl font-semibold text-fg sm:text-4xl">
           {settings.results_visible ? 'The Lineup' : 'Cast Your Vote'}
         </h2>
         {loading ? (
-          <div className="animate-pulse py-16 text-ink/40">Loading the lineup…</div>
+          <div className="animate-pulse py-16 text-fg/40">Loading the lineup…</div>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {orderedEntries.map((entry, i) => (
@@ -329,11 +329,11 @@ export default function App() {
         )}
       </main>
 
-      <footer className="border-t border-ink/15">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-1 px-5 py-8 text-sm text-ink/45 sm:flex-row sm:items-center sm:justify-between">
+      <footer className="border-t border-fg/15">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-1 px-5 py-8 text-sm text-fg/45 sm:flex-row sm:items-center sm:justify-between">
           <span>Made with ❤️ for Worthington Hills</span>
           <span>
-            One phone number, one vote <span className="text-red">★</span>
+            One phone number, one vote <span className="text-primary">★</span>
           </span>
         </div>
       </footer>
@@ -350,7 +350,7 @@ export default function App() {
       )}
 
       {toast && (
-        <div className="pop fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-6 py-3 text-sm font-medium text-paper shadow-xl">
+        <div className="pop fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-fg px-6 py-3 text-sm font-medium text-bg shadow-xl">
           {toast}
         </div>
       )}

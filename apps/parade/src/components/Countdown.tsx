@@ -15,11 +15,11 @@ export default function Countdown({ label, target, now }: Props) {
 
   return (
     <div>
-      <p className="mb-3 text-xs font-semibold tracking-[0.25em] text-red uppercase">
+      <p className="mb-3 text-xs font-semibold tracking-[0.25em] text-primary uppercase">
         ★ {label}
       </p>
       <div
-        className="flex divide-x divide-ink/15 rounded-2xl border border-ink/15 bg-card"
+        className="flex divide-x divide-fg/15 rounded-card border border-fg/15 bg-surface"
         role="timer"
         aria-label={`${label}: ${segments.map((s) => `${s.value} ${s.unit}`).join(', ')}`}
       >
@@ -28,17 +28,17 @@ export default function Countdown({ label, target, now }: Props) {
             {/* Google Fonts' Fraunces ships no tabular figures (tnum is a no-op),
                 so each digit gets a fixed 0.68em slot — just wider than its
                 widest digit, the 0.664em "0" — to keep the timer from shifting. */}
-            <div className="font-display text-3xl font-semibold text-ink sm:text-5xl">
+            <div className="font-display text-3xl font-semibold text-fg sm:text-5xl">
               {String(seg.value)
                 .padStart(2, '0')
                 .split('')
                 .map((digit, i) => (
-                  <span key={i} className="inline-block w-[0.68em] text-center">
+                  <span key={i} className="inline-block w-(--countdown-digit-width) text-center">
                     {digit}
                   </span>
                 ))}
             </div>
-            <div className="mt-1 text-[10px] font-semibold tracking-[0.2em] text-ink/45 uppercase">
+            <div className="mt-1 text-[10px] font-semibold tracking-[0.2em] text-fg/45 uppercase">
               {seg.unit}
             </div>
           </div>

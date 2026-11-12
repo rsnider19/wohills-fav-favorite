@@ -76,29 +76,29 @@ export default function PhoneAuth({ voteFor, onSuccess, onCancel }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/50 p-4 backdrop-blur-sm"
       onClick={onCancel}
     >
       <div
-        className="pop w-full max-w-md rounded-3xl border border-ink/10 bg-card p-8 text-ink shadow-2xl"
+        className="pop w-full max-w-md rounded-dialog border border-fg/10 bg-surface p-8 text-fg shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label="Sign in to vote"
       >
         <div className="mb-6">
-          <p className="mb-2 text-xs font-semibold tracking-[0.25em] text-red uppercase">
+          <p className="mb-2 text-xs font-semibold tracking-[0.25em] text-primary uppercase">
             {step === 'phone' ? '★ One neighbor, one vote' : '★ Check your texts'}
           </p>
           <h2 className="font-display text-3xl font-semibold">
             {step === 'phone' ? 'Verify to vote' : 'Enter your code'}
           </h2>
           {step === 'phone' && voteFor && (
-            <p className="mt-2 text-sm font-medium text-red">
+            <p className="mt-2 text-sm font-medium text-primary">
               Your vote for {voteFor} will be cast as soon as you verify.
             </p>
           )}
-          <p className="mt-2 text-sm leading-relaxed text-ink/60">
+          <p className="mt-2 text-sm leading-relaxed text-fg/60">
             {step === 'phone'
               ? 'We text you a 6-digit code to keep it fair. Your number is only used to verify you.'
               : `We sent a 6-digit code to ${phone}.`}
@@ -120,12 +120,12 @@ export default function PhoneAuth({ voteFor, onSuccess, onCancel }: Props) {
                 setPhoneInput(raw.length > phoneInput.length ? formatPhone(raw) : raw)
               }}
               autoFocus
-              className="w-full rounded-xl border border-ink/20 bg-white px-4 py-3 text-lg text-ink outline-none focus:border-ink"
+              className="w-full rounded-field border border-fg/20 bg-field px-4 py-3 text-lg text-fg outline-none focus:border-fg"
             />
             <button
               type="submit"
               disabled={busy}
-              className="w-full rounded-full bg-ink px-4 py-3 font-semibold text-paper transition hover:bg-red disabled:opacity-50"
+              className="w-full rounded-full bg-fg px-4 py-3 font-semibold text-bg transition hover:bg-primary disabled:opacity-50"
             >
               {busy ? 'Sending…' : 'Text me a code'}
             </button>
@@ -141,12 +141,12 @@ export default function PhoneAuth({ voteFor, onSuccess, onCancel }: Props) {
               placeholder="••••••"
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-              className="w-full rounded-xl border border-ink/20 bg-white px-4 py-3 text-center font-display text-3xl tracking-[0.5em] text-ink outline-none focus:border-ink"
+              className="w-full rounded-field border border-fg/20 bg-field px-4 py-3 text-center font-display text-3xl tracking-[0.5em] text-fg outline-none focus:border-fg"
             />
             <button
               type="submit"
               disabled={busy}
-              className="w-full rounded-full bg-ink px-4 py-3 font-semibold text-paper transition hover:bg-red disabled:opacity-50"
+              className="w-full rounded-full bg-fg px-4 py-3 font-semibold text-bg transition hover:bg-primary disabled:opacity-50"
             >
               {busy ? 'Verifying…' : 'Verify & vote'}
             </button>
@@ -157,7 +157,7 @@ export default function PhoneAuth({ voteFor, onSuccess, onCancel }: Props) {
                 setCode('')
                 setError(null)
               }}
-              className="w-full text-sm text-ink/55 underline-offset-4 hover:underline"
+              className="w-full text-sm text-fg/55 underline-offset-4 hover:underline"
             >
               Use a different number
             </button>
@@ -165,7 +165,7 @@ export default function PhoneAuth({ voteFor, onSuccess, onCancel }: Props) {
         )}
 
         {error && (
-          <p className="mt-4 rounded-lg bg-red/10 px-3 py-2 text-sm text-red-deep">
+          <p className="mt-4 rounded-lg bg-primary/10 px-3 py-2 text-sm text-danger">
             {error}
           </p>
         )}

@@ -1,0 +1,21 @@
+{
+  "name": "@wohills/ui",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens.css": "./src/tokens.css",
+    "./motion.css": "./src/motion.css"
+  },
+  "dependencies": {
+    "@wohills/core": "*",
+    "tailwind-merge": "^3.7.0"
+  },
+  "peerDependencies": {
+    "react": "^19.2.6"
+  }
+}
