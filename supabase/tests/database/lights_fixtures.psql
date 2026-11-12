@@ -1,0 +1,102 @@
+-- Shared fixtures for the lights pgTAP tests. Included with `\ir` from inside
+-- each test's transaction, so everything here (including the seed rows it
+-- deletes) is rolled back at the end of the file. Not a test file itself:
+-- `supabase test db` only runs *.sql files.
+\set QUIET on
+
+-- Start from an empty contest so the local seed can't skew counts.
+delete from lights.votes;
+delete from lights.houses;
+
+-- Test users. Phones don't collide with the seed's 1555555010x numbers.
+insert into auth.users (id, aud, role, phone) values
+  ('00000000-0000-4000-8000-00000000000a', 'authenticated', 'authenticated', '15550000001'), -- owner of approved A
+  ('00000000-0000-4000-8000-00000000000b', 'authenticated', 'authenticated', '15550000002'), -- owner of approved B
+  ('00000000-0000-4000-8000-00000000000c', 'authenticated', 'authenticated', '15550000003'), -- owner of pending C
+  ('00000000-0000-4000-8000-00000000000d', 'authenticated', 'authenticated', '15550000004'), -- owner of hidden D
+  ('00000000-0000-4000-8000-0000000000e1', 'authenticated', 'authenticated', '15550000005'), -- voter, no house
+  ('00000000-0000-4000-8000-0000000000e2', 'authenticated', 'authenticated', '15550000006'), -- new submitter
+  ('00000000-0000-4000-8000-0000000000ad', 'authenticated', 'authenticated', '15550000009'); -- the admin
+
+update public.admin_config set admin_phone = '15550000009';
+
+-- Fixture houses, inserted as postgres (trusted, so status can be set).
+-- Inside the default geofence (40.1175..40.1450, -83.0670..-83.0305).
+insert into lights.houses (id, submitted_by, address, lat, lng, photo_url, title, status) values
+  ('00000000-0000-4000-9000-00000000000a', '00000000-0000-4000-8000-00000000000a',
+   '1221 Candlewood Dr', 40.1231, -83.0516, 'https://example.test/storage/v1/object/public/houses/a/1.jpg', 'The Griswold Special', 'approved'),
+  ('00000000-0000-4000-9000-00000000000b', '00000000-0000-4000-8000-00000000000b',
+   '800 Blind Brook Dr', 40.1293, -83.0440, 'https://example.test/storage/v1/object/public/houses/b/1.jpg', null, 'approved'),
+  ('00000000-0000-4000-9000-00000000000c', '00000000-0000-4000-8000-00000000000c',
+   '920 Clubview Blvd S', 40.1247, -83.0423, 'https://example.test/storage/v1/object/public/houses/c/1.jpg', null, 'pending'),
+  ('00000000-0000-4000-9000-00000000000d', '00000000-0000-4000-8000-00000000000d',
+   '7100 Shelley Ct', 40.1334, -83.0600, 'https://example.test/storage/v1/object/public/houses/d/1.jpg', null, 'hidden');
+
+-- Helpers live in a throwaway schema (rolled back with the test).
+create schema tests;
+grant usage on schema tests to anon, authenticated;
+
+-- Act as a signed-in user (the JWT claims PostgREST would set). Call
+-- `reset role;` to go back to postgres.
+create function tests.act_as(p_user uuid)
+returns void
+language plpgsql
+as $$
+begin
+  perform set_config('request.jwt.claims', json_build_object(
+    'sub', p_user, 'role', 'authenticated',
+    'phone', (select u.phone from auth.users u where u.id = p_user)
+  )::text, true);
+  perform set_config('role', 'authenticated', true);
+end;
+$$;
+
+create function tests.act_as_anon()
+returns void
+language plpgsql
+as $$
+begin
+  perform set_config('request.jwt.claims', '{"role":"anon"}', true);
+  perform set_config('role', 'anon', true);
+end;
+$$;
+
+-- Put the contest clock in a named phase (all bounds relative to now(), which
+-- is fixed for the whole transaction). Call as postgres.
+--   before_submissions: nothing open yet
+--   submissions:        submissions open, voting opens tomorrow (owners can edit)
+--   overlap:            submissions still open, voting open (edits locked)
+--   voting:             submissions closed, voting open
+--   closed:             everything closed
+create function tests.phase(p_phase text)
+returns void
+language plpgsql
+as $$
+begin
+  update lights.settings set
+    submissions_open = true,
+    voting_open = true,
+    submissions_open_at = case p_phase
+      when 'before_submissions' then now() + interval '1 day'
+      else now() - interval '10 days' end,
+    submissions_close_at = case p_phase
+      when 'before_submissions' then now() + interval '20 days'
+      when 'submissions' then now() + interval '10 days'
+      when 'overlap' then now() + interval '1 day'
+      else now() - interval '1 day' end,
+    voting_opens_at = case p_phase
+      when 'before_submissions' then now() + interval '10 days'
+      when 'submissions' then now() + interval '1 day'
+      when 'closed' then now() - interval '9 days'
+      else now() - interval '1 hour' end,
+    voting_closes_at = case p_phase
+      when 'closed' then now() - interval '1 hour'
+      else now() + interval '30 days' end
+  where id;
+  if not found then raise exception 'no settings row'; end if;
+end;
+$$;
+
+grant execute on all functions in schema tests to anon, authenticated;
+
+\set QUIET off
