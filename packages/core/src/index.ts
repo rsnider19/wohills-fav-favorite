@@ -13,3 +13,4 @@ export { votingWindow, useVotingWindow, type VotingWindow, type WindowPreview } 
 export { useMyVote, type MyVoteOptions } from './useMyVote'
 export { useIsAdmin } from './useIsAdmin'
 export { useResults } from './useResults'
+export { directionsUrl, detectMapsPlatform, type Destination, type MapsPlatform } from './directions'
