@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from '@playwright/test'
-import { CANDLEWOOD, DOWNTOWN, PHONE, checkGuards, resetLights, signInAs, stubNetwork } from './helpers'
+import { CANDLEWOOD, DOWNTOWN, PHONE, checkGuards, resetLights, service, signInAs, stubNetwork } from './helpers'
 
 // M6: the lineup ⇄ map toggle, the bulbs, the house sheet, the navigate links, keyboard
 // access and reduced motion. The basemap is the offline fixture (stubNetwork), so these
@@ -77,6 +77,71 @@ test('picking a bulb opens the sheet; ?house= picks it on load; closing clears i
   // A pending house's number picks nothing.
   await openMap(page, '/?view=map&house=6')
   await expect(sheet(page)).toHaveCount(0)
+})
+
+test('a poll adds and removes bulbs, and keeps the picked house and the focus', async ({ page }) => {
+  await stubNetwork(page)
+  await openMap(page, '/?view=map&house=1')
+  await expect(sheet(page).getByRole('heading')).toHaveText('The Griswold Special')
+  await bulb(page, 2).focus()
+  // The 30 s poll, now: usePolling also refreshes when the tab becomes visible.
+  const poll = () => page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
+  const setStatus = async (n: number, status: string) =>
+    expect((await service().from('houses').update({ status }).eq('entry_number', n)).error).toBeNull()
+
+  // The admin approves No. 6: exactly one new bulb; the pick, the sheet and the focus stay.
+  await setStatus(6, 'approved')
+  await poll()
+  await expect(bulbs(page)).toHaveCount(6)
+  await expect(page.locator('.maplibregl-marker')).toHaveCount(6)
+  await expect(bulb(page, 1)).toHaveAttribute('aria-pressed', 'true')
+  await expect(sheet(page).getByRole('heading')).toHaveText('The Griswold Special')
+  await expect(bulb(page, 2)).toBeFocused()
+  // Nothing new: no duplicate markers.
+  await poll()
+  await poll()
+  await expect(page.locator('.maplibregl-marker')).toHaveCount(6)
+
+  // The admin hides the picked house: its bulb and its sheet go.
+  await setStatus(1, 'hidden')
+  await poll()
+  await expect(bulbs(page)).toHaveCount(5)
+  await expect(sheet(page)).toHaveCount(0)
+
+  // The bulbs' Tab order is still the lineup's order.
+  const onMap = await bulbs(page).evaluateAll((els) => els.map((el) => Number((el as HTMLElement).dataset.number)))
+  await toggle(page, 'Lineup').click()
+  const inLineup = await page.locator('[data-slot="house-card"] [data-slot="house-number"] b').allTextContents()
+  expect(onMap).toEqual(inLineup.map(Number))
+})
+
+test('back, forward and in-app links follow the view and the house in the address bar', async ({ page }) => {
+  await stubNetwork(page)
+  await page.goto('/')
+  await expect(page.locator('[data-slot="house-card"]')).toHaveCount(5)
+  // The hero's "#houses" link adds a history entry; the map then replaces it.
+  await page.locator('[data-slot="hero-actions"] a[href="#houses"]').click()
+  await expect(page).toHaveURL(/\/#houses$/)
+  await toggle(page, 'Map').click()
+  await bulb(page, 2).click()
+  await expect(page).toHaveURL(/\?view=map&house=2$/)
+
+  await page.goBack()
+  await expect(page).toHaveURL(/localhost:\d+\/$/)
+  await expect(toggle(page, 'Lineup')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('[data-slot="house-card"]')).toHaveCount(5)
+
+  await page.goForward()
+  await expect(toggle(page, 'Map')).toHaveAttribute('aria-pressed', 'true')
+  await expect(sheet(page).getByRole('heading')).toHaveText('Candy Cane Lane')
+
+  // To /enter and back by the page's own link: home is the lineup (route.ts keeps no ?view=).
+  await page.locator('[data-slot="hero-actions"]').getByRole('link', { name: 'Enter your house' }).click()
+  await expect(page).toHaveURL(/\/enter$/)
+  await page.locator('[data-slot="back-link"]').click()
+  await expect(page).toHaveURL(/localhost:\d+\/$/)
+  await expect(page.locator('[data-slot="house-card"]')).toHaveCount(5)
+  await expect(bulbs(page)).toHaveCount(0)
 })
 
 // [label, user agent, extra navigator overrides, expected href for No. 1, opens a new tab]
@@ -178,13 +243,42 @@ test('keyboard: Tab reaches the bulbs, Enter opens the sheet, Escape returns to 
 test('keyboard: focusing a bulb outside the view moves the map to it', async ({ page }) => {
   await stubNetwork(page)
   await openMap(page, '/?view=map&house=1') // zoomed in on No. 1; No. 4 is far off screen
-  const area = (await page.locator('[data-slot="house-map-area"]').boundingBox())!
-  const outside = (b: { x: number; y: number }) => b.x < area.x || b.x > area.x + area.width || b.y < area.y || b.y > area.y + area.height
-  expect(outside((await bulb(page, 4).boundingBox())!)).toBe(true)
+  // Bounding boxes are relative to the viewport, and focusing scrolls the page: measure the
+  // map area and the bulb together, every time.
+  const area = page.locator('[data-slot="house-map-area"]')
+  const onScreen = async () => {
+    const a = (await area.boundingBox())!
+    const b = (await bulb(page, 4).boundingBox())!
+    const x = b.x + b.width / 2
+    const y = b.y + b.height // the bulb's tip, its anchor
+    return x > a.x && x < a.x + a.width && y > a.y && y < a.y + a.height
+  }
+  const scrolled = () => page.locator('.maplibregl-map').evaluate((el) => el.scrollTop + el.scrollLeft)
+  await area.scrollIntoViewIfNeeded()
+  expect(await onScreen()).toBe(false)
   await bulb(page, 4).focus()
-  await expect.poll(async () => outside((await bulb(page, 4).boundingBox())!)).toBe(false)
+  await expect.poll(onScreen).toBe(true)
   // MapLibre's container never scrolls (that would knock the bulbs off their spots).
-  expect(await page.locator('.maplibregl-map').evaluate((el) => el.scrollTop + el.scrollLeft)).toBe(0)
+  expect(await scrolled()).toBe(0)
+
+  // Escape from the sheet returns focus to its bulb even after the map was dragged away
+  // from it, and the bulb comes back into view.
+  await page.keyboard.press('Enter')
+  await expect(sheet(page).getByRole('heading')).toBeFocused()
+  await area.scrollIntoViewIfNeeded()
+  const a = (await area.boundingBox())!
+  const from = { x: a.x + a.width / 2, y: a.y + 100 }
+  await page.mouse.move(from.x, from.y)
+  await page.mouse.down()
+  await page.mouse.move(from.x + 300, from.y + 200, { steps: 8 })
+  await page.mouse.up()
+  await expect.poll(onScreen).toBe(false)
+  await sheet(page).getByRole('heading').focus()
+  await page.keyboard.press('Escape')
+  await expect(sheet(page)).toHaveCount(0)
+  await expect(bulb(page, 4)).toBeFocused()
+  await expect.poll(onScreen).toBe(true)
+  expect(await scrolled()).toBe(0)
 })
 
 test('the picked bulb pulses, holds still under reduced motion, and pauses off screen', async ({ page }) => {
@@ -244,9 +338,13 @@ test('without the basemap the map says so and offers the lineup', async ({ page 
   await page.route('https://basemaps.cartocdn.com/**', (route) => route.abort())
   await page.goto('/?view=map')
   await expect(page.getByText("The map didn't load.")).toBeVisible()
+  // The bulbs and controls under the overlay are out of reach (inert).
+  await expect(page.locator('[data-slot="house-map-canvas"]')).toHaveJSProperty('inert', true)
   await page.getByRole('button', { name: 'Show the lineup' }).click()
   await expect(page.locator('[data-slot="house-card"]')).toHaveCount(5)
   await expect(page).toHaveURL(/localhost:\d+\/$/)
+  // Focus lands on the toggle, not on <body>.
+  await expect(toggle(page, 'Lineup')).toBeFocused()
 })
 
 test('without the map chunk the lineup still works', async ({ page }) => {
