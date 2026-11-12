@@ -35,7 +35,8 @@ repo root.
 ```sh
 supabase start    # local stack on ports 55321 (API), 55322 (db), 55323 (Studio)
 npm install
-npm run dev       # http://localhost:5173
+npm run dev       # http://localhost:5173 (parade)
+npm run dev:lights  # http://localhost:5174 (holiday lights)
 ```
 
 Run `npm test` for the shared packages' unit tests (vitest). `config.toml` uses
@@ -163,6 +164,30 @@ npm run contest-admin -- --contest lights     # apply SUBMISSIONS_*/VOTING_*/RES
 header of `tools/contest-admin.mjs` for every variable. Locally the seed opens submissions
 on `db reset` and schedules voting a week later.
 
+## Holiday lights app
+
+The lights site lives in `apps/lights` and runs on the local stack:
+
+```sh
+cp apps/lights/.env.example apps/lights/.env   # paste the Publishable key from `supabase status`
+npm run dev:lights                             # http://localhost:5174
+```
+
+It reads `lights.settings` and the approved houses through the shared hooks (the seed has
+five), and shows whichever phase the settings put it in. To look at the other phases without
+changing the database, add `?preview=before`, `submissions`, `voting`, `closed` or
+`results` to the URL. That works in `npm run dev:lights` and, on a real build, only for the
+signed-in admin. To change the real phase, use `npm run contest-admin -- --contest lights`.
+
+Other entrances: `/?signin` (or five quick taps on "Worthington Hills ★ 2026" in the hero)
+opens the phone sign-in before anything is open, e.g. for the admin. The bulb button in the
+header pauses every animation (remembered per device); visitors with "reduce motion" turned
+on never see animation, and the lights stay on. `?house=<number>` puts that house first in
+the lineup.
+
+`apps/lights/wrangler.jsonc` is staged for the Cloudflare move (hosting is on hold); nothing
+deploys the lights app yet, and Vercel still builds only the parade.
+
 ## Production deployment
 
 ### 1. Supabase (hosted)
@@ -220,6 +245,13 @@ apps/parade/                         the 4th of July parade site (Vite app)
   src/components/AdminEditButton.tsx  day-of float text edits (admin only)
   src/copy.ts                         parade wording for the shared components
   src/lib/supabase.ts                client init from VITE_* env vars
+apps/lights/                         the holiday lights site (Vite app; local only for now)
+  index.html  vite.config.ts  wrangler.jsonc  .env.example  public/favicon.svg
+  src/App.tsx                        app shell: settings, houses, phase, sign-in
+  src/index.css  src/effects.css     theme tokens and every light effect (guardrails inside)
+  src/copy.ts                        all lights wording
+  src/lib/phase.ts                   contest phase + ?preview= logic (tested)
+  src/components/                    Header, Hero, LightString, Gallery, HouseCard, Footer
 packages/core/                       @wohills/core: Supabase hooks, phone, image pipeline, directions (no styling)
 packages/ui/                         @wohills/ui: token contract (tokens.css), motion.css, shared components
 supabase/                            shared Supabase project (all contests)
