@@ -269,3 +269,19 @@ export async function dragMap(page: Page, dx: number, dy: number) {
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
   await cdp.detach()
 }
+
+/** The M4 guardrails on whatever is on screen: nothing scrolls sideways and every control
+ *  is at least 44px tall (MapLibre's 24px attribution toggle excepted; WCAG 2.5.8 allows it). */
+export async function checkGuards(page: Page, screen: string) {
+  const report = await page.evaluate(() => {
+    const overflow = document.documentElement.scrollWidth - window.innerWidth
+    const small = [...document.querySelectorAll<HTMLElement>('button, a[href], input:not([type=file])')]
+      .filter((el) => el.offsetParent !== null && !el.closest('.maplibregl-ctrl-attrib'))
+      .map((el) => ({ el, h: el.getBoundingClientRect().height }))
+      .filter(({ h }) => h > 0 && h < 44)
+      .map(({ el, h }) => `${el.tagName.toLowerCase()} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 30)}" ${h.toFixed(0)}px`)
+    return { overflow, small }
+  })
+  expect(report.overflow, `${screen}: horizontal overflow`).toBeLessThanOrEqual(0)
+  expect(report.small, `${screen}: tap targets under 44px`).toEqual([])
+}

@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
-import { CANDLEWOOD, PHONE, housePhoto, resetLights, signInAs, stubNetwork } from './helpers'
+import { expect, test } from '@playwright/test'
+import { CANDLEWOOD, PHONE, checkGuards, housePhoto, resetLights, signInAs, stubNetwork } from './helpers'
 
 // The M4 guardrails on the M5 screens, at phone width: nothing scrolls sideways, every
 // control is at least 44px tall, and nothing animates under reduced motion.
@@ -7,20 +7,6 @@ import { CANDLEWOOD, PHONE, housePhoto, resetLights, signInAs, stubNetwork } fro
 test.beforeEach(async () => {
   await resetLights()
 })
-
-async function checkGuards(page: Page, screen: string) {
-  const report = await page.evaluate(() => {
-    const overflow = document.documentElement.scrollWidth - window.innerWidth
-    const small = [...document.querySelectorAll<HTMLElement>('button, a[href], input:not([type=file])')]
-      .filter((el) => el.offsetParent !== null && !el.closest('.maplibregl-ctrl-attrib'))
-      .map((el) => ({ el, h: el.getBoundingClientRect().height }))
-      .filter(({ h }) => h > 0 && h < 44)
-      .map(({ el, h }) => `${el.tagName.toLowerCase()} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 30)}" ${h.toFixed(0)}px`)
-    return { overflow, small }
-  })
-  expect(report.overflow, `${screen}: horizontal overflow`).toBeLessThanOrEqual(0)
-  expect(report.small, `${screen}: tap targets under 44px`).toEqual([])
-}
 
 test('every M5 screen keeps the guardrails', async ({ page, context }) => {
   await context.grantPermissions(['geolocation'])
