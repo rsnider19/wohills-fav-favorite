@@ -3,6 +3,7 @@
   "references": [
     { "path": "./packages/core" },
     { "path": "./packages/ui" },
-    { "path": "./apps/parade" }
+    { "path": "./apps/parade" },
+    { "path": "./apps/lights" }
   ]
 }

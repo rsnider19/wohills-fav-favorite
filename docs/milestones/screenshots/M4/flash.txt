@@ -1,0 +1,4 @@
+ok   phone hero (voting): worst block 2 flash(es) in any 1s at x≈18, y≈204 (stepped: bulb-chase, faulty-bulb, live-pulse, power-on, rise, twinkle)
+ok   desktop hero (voting): worst block 2 flash(es) in any 1s at x≈186, y≈276 (stepped: bulb-chase, faulty-bulb, live-pulse, power-on, rise, twinkle)
+ok   desktop gallery, card hovered: worst block 1 flash(es) in any 1s at x≈132, y≈0 (stepped: bulb-chase, faulty-bulb, live-pulse, power-on, rise, twinkle)
+ok   phone sign-in dialog: worst block 2 flash(es) in any 1s at x≈18, y≈222 (stepped: bulb-chase, faulty-bulb, live-pulse, pop, power-on, rise, twinkle)

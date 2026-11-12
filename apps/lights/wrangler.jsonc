@@ -1,0 +1,11 @@
+{
+  // Staged for milestone H (hosting is on hold). Nothing deploys this yet:
+  // Workers Builds will run `npx wrangler deploy` from apps/lights once H connects it.
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "wh-holiday-lights",
+  "compatibility_date": "2026-06-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
