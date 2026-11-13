@@ -8,7 +8,7 @@ test.beforeEach(async () => {
   await resetLights()
 })
 
-test('every M5 screen keeps the guardrails', async ({ page, context }) => {
+test('every M5 screen keeps the guardrails', { tag: '@smoke' }, async ({ page, context }) => {
   await context.grantPermissions(['geolocation'])
   await context.setGeolocation(CANDLEWOOD)
   await stubNetwork(page)

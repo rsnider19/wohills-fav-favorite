@@ -19,9 +19,12 @@
     "seed-floats": "npm run seed-floats -w apps/parade",
     "seed-float-images": "npm run seed-float-images -w apps/parade",
     "test": "vitest run",
-    "e2e:lights": "playwright test -c apps/lights/playwright.config.ts"
+    "e2e:lights": "playwright test -c apps/lights/playwright.config.ts",
+    "e2e:parade": "playwright test -c apps/parade/playwright.config.ts",
+    "e2e:smoke": "npm run e2e:lights -- --grep @smoke && npm run e2e:parade -- --grep @smoke"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "1.63.0",
     "eslint": "^10.3.0",

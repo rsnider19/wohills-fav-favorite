@@ -20,7 +20,7 @@ async function openMap(page: Page, path = '/?view=map') {
   await expect(bulbs(page)).toHaveCount(5)
 }
 
-test('the toggle switches lineup ⇄ map, survives a reload, and the map shows only approved houses', async ({ page }) => {
+test('the toggle switches lineup ⇄ map, survives a reload, and the map shows only approved houses', { tag: '@smoke' }, async ({ page }) => {
   await stubNetwork(page)
   await page.goto('/')
   await expect(page.locator('[data-slot="house-card"]')).toHaveCount(5)
@@ -358,7 +358,7 @@ test('without the map chunk the lineup still works', async ({ page }) => {
   await expect(page.locator('[data-slot="house-card"]')).toHaveCount(5)
 })
 
-test('the map view keeps the guardrails at phone width', async ({ page }) => {
+test('the map view keeps the guardrails at phone width', { tag: '@smoke' }, async ({ page }) => {
   await stubNetwork(page)
   await openMap(page)
   await page.locator('[data-slot="house-map"]').scrollIntoViewIfNeeded()

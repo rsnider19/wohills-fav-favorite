@@ -14,7 +14,7 @@ test.beforeEach(async () => {
 const ballot = (page: Page, n: number) => card(page, n).locator('[data-slot="vote-button"]')
 const toast = (page: Page) => page.locator('[data-slot="toast"]')
 
-test('sign in to vote → the vote goes in after the code → switch it → a reload keeps it', async ({ page }) => {
+test('sign in to vote → the vote goes in after the code → switch it → a reload keeps it', { tag: '@smoke' }, async ({ page }) => {
   await stubNetwork(page)
   await page.goto('/')
   await expect(ballot(page, 4)).toHaveText('Sign in to vote')
@@ -233,4 +233,28 @@ test('the map sheet has the same vote button, with Directions shrunk to its icon
   expect(await voteOf(PHONE.fresh)).toBe(4)
   await page.getByRole('group', { name: 'Show the houses as' }).getByRole('button', { name: 'Lineup' }).click()
   await expect(card(page, 4)).toHaveAttribute('data-state', 'lit')
+})
+
+test('a returning voter is never offered a fresh vote while their stored vote is read', async ({ page, context }) => {
+  const { client, session } = await signInApi(PHONE.fresh)
+  const cast = await client.from('votes').upsert({ user_id: session.user.id, house_id: seedHouseId(4) }, { onConflict: 'user_id' })
+  expect(cast.error).toBeNull()
+  await signInAs(context, PHONE.fresh)
+  await stubNetwork(page)
+  let release: () => void = () => {}
+  const held = new Promise<void>((resolve) => (release = resolve))
+  await page.route('**/rest/v1/votes?select=house_id*', async (route) => {
+    if (route.request().method() === 'GET') await held
+    await route.continue()
+  })
+  await page.goto('/')
+  await expect(page.locator('[data-slot="house-card"]')).toHaveCount(5)
+  // The read is held: no card offers a vote (nor a switch) yet, and none is lit.
+  await page.waitForTimeout(1000)
+  await expect(page.locator('[data-slot="vote-button"]')).toHaveCount(0)
+  await expect(page.getByText('Vote for this house')).toHaveCount(0)
+  release()
+  await expect(ballot(page, 4)).toHaveText('★ Your pick')
+  await expect(card(page, 4)).toHaveAttribute('data-state', 'lit')
+  await expect(ballot(page, 2)).toHaveText('Switch my vote here')
 })

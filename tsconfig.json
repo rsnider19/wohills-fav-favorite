@@ -4,6 +4,7 @@
     { "path": "./packages/core" },
     { "path": "./packages/ui" },
     { "path": "./apps/parade" },
+    { "path": "./apps/parade/tsconfig.e2e.json" },
     { "path": "./apps/lights" }
   ]
 }
