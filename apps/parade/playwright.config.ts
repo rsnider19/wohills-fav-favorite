@@ -9,7 +9,7 @@ export default defineConfig({
   testMatch: '**/*.e2e.ts',
   workers: 1,
   fullyParallel: false,
-  // A stray test.only would quietly shrink CI (and the @smoke grep) to one test.
+  // A stray test.only would quietly cut CI (and the @smoke grep) down to one test.
   forbidOnly: !!process.env.CI,
   timeout: 60_000,
   expect: { timeout: 10_000 },

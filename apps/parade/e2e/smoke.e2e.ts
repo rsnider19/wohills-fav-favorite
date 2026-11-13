@@ -16,55 +16,15 @@ const PHONE = '15555550102'
 
 // The parade shipped in July with these axe findings: low-contrast muted text and the red
 // eyebrow on the paper background, and content outside landmarks. Fixing them changes how
-// the live parade looks, which M8 doesn't do (M8 D11). They are pinned per screen and per
-// element (axe 4.14.0, exact), so a new low-contrast element fails the test just like a new
-// rule does; a finding that goes away is fine.
-const KNOWN: Record<string, string[]> = {
-  ballot: [
-    'color-contrast: .inline-block',
-    'color-contrast: p',
-    'color-contrast: .marquee-track > span:nth-child(1)',
-    'color-contrast: .gap-1 > span:nth-child(1)',
-    'color-contrast: .gap-1 > span:nth-child(2)',
-    'region: section',
-  ],
-  'sign-in dialog': [
-    'color-contrast: .inline-block',
-    'color-contrast: .mb-5',
-    'color-contrast: .marquee-track > span:nth-child(1)',
-    'color-contrast: .gap-1 > span:nth-child(1)',
-    'color-contrast: .gap-1 > span:nth-child(2)',
-    'color-contrast: .leading-relaxed',
-    'region: section',
-  ],
-  voted: [
-    'color-contrast: .inline-block',
-    'color-contrast: p',
-    'color-contrast: .marquee-track > span:nth-child(1)',
-    'color-contrast: .absolute',
-    'color-contrast: button[data-state="voted"]',
-    'color-contrast: .gap-1 > span:nth-child(1)',
-    'color-contrast: .gap-1 > span:nth-child(2)',
-    'region: section',
-  ],
-  results: [
-    'color-contrast: .inline-block',
-    'color-contrast: .mb-5',
-    'color-contrast: .marquee-track > span:nth-child(1)',
-    'color-contrast: .mb-3',
-    'color-contrast: .px-2\\.5',
-    'color-contrast: li[data-rank="1"] > .min-w-0.grow > .font-medium.tracking-\\[0\\.12em\\][data-slot="leaderboard-subtitle"]',
-    'color-contrast: li[data-rank="1"] > .text-right.shrink-0 > .text-fg\\/40.text-\\[10px\\][data-slot="leaderboard-count-label"]',
-    'color-contrast: li[data-rank="2"] > .min-w-0.grow > .font-medium.tracking-\\[0\\.12em\\][data-slot="leaderboard-subtitle"]',
-    'color-contrast: li[data-rank="2"] > .text-right.shrink-0 > .text-fg\\/40.text-\\[10px\\][data-slot="leaderboard-count-label"]',
-    'color-contrast: li[data-rank="3"] > .min-w-0.grow > .font-medium.tracking-\\[0\\.12em\\][data-slot="leaderboard-subtitle"]',
-    'color-contrast: li[data-rank="3"] > .text-right.shrink-0 > .text-fg\\/40.text-\\[10px\\][data-slot="leaderboard-count-label"]',
-    'color-contrast: .pop',
-    'color-contrast: button[data-state="voted"]',
-    'color-contrast: .gap-1 > span:nth-child(1)',
-    'color-contrast: .gap-1 > span:nth-child(2)',
-    'region: .pt-14',
-  ],
+// the live parade looks, which M8 doesn't do (M8 D11). They are pinned per screen as the
+// number of elements each rule flags (axe 4.14.0, exact), so a new low-contrast element fails
+// the test just like a new rule does; fewer is fine. Counts, not selectors: Tailwind scans
+// this file too, and class names written here would add utilities to the parade's CSS.
+const KNOWN: Record<string, Record<string, number>> = {
+  ballot: { 'color-contrast': 5, region: 1 },
+  'sign-in dialog': { 'color-contrast': 6, region: 1 },
+  voted: { 'color-contrast': 7, region: 1 },
+  results: { 'color-contrast': 15, region: 1 },
 }
 async function axe(page: Page, screen: string) {
   // Let finite animations and transitions end first (a card turning "voted" fades its title
@@ -80,8 +40,9 @@ async function axe(page: Page, screen: string) {
   const { violations } = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])
     .analyze()
-  const found = violations.flatMap((v) => v.nodes.map((n) => `${v.id}: ${n.target.join(' ')}`))
-  const unknown = found.filter((f) => !KNOWN[screen].includes(f))
+  const unknown = violations
+    .filter((v) => v.nodes.length > (KNOWN[screen][v.id] ?? 0))
+    .map((v) => `${v.id} (${v.nodes.length} > ${KNOWN[screen][v.id] ?? 0}): ${v.nodes.map((n) => n.target.join(' ')).join(' | ')}`)
   expect(unknown, `${screen}: new axe violations`).toEqual([])
 }
 
