@@ -76,8 +76,20 @@ test('ballot → sign in and vote → reload keeps it → the reveal shows the t
   await expect(page.getByLabel('Phone number')).toBeVisible()
   await axe(page, 'sign-in dialog')
   await page.getByLabel('Phone number').fill(PHONE.slice(1))
-  await page.getByRole('button', { name: /code/i }).click()
-  await page.getByLabel('6-digit code').fill('123456')
+  // GoTrue sends one code per phone every 5 s (config.toml [auth.sms] max_frequency). In
+  // `npm run e2e:smoke` the lights vote test signs this same phone in just before, so the
+  // first request can be refused; wait it out like a neighbor would (the lights tests'
+  // signInWithDialog does the same). Any other error still fails here.
+  const code = page.getByLabel('6-digit code')
+  const cooldown = page.getByRole('alert').filter({ hasText: 'you can only request this after' })
+  for (let attempt = 0; ; attempt++) {
+    await page.getByRole('button', { name: 'Text me a code' }).click()
+    await expect(code.or(cooldown)).toBeVisible()
+    if (await code.isVisible()) break
+    if (attempt === 3) throw new Error('the code cooldown did not clear')
+    await page.waitForTimeout(5000)
+  }
+  await code.fill('123456')
   await page.getByRole('button', { name: 'Verify & vote' }).click()
   await expect(page.getByRole('status')).toContainText('Vote cast for')
   await expect(page.getByRole('button', { name: /Voted/ })).toHaveCount(1)
