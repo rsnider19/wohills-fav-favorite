@@ -436,7 +436,7 @@ Today is Nov 12. The contest dates set three hard gates:
 
 | Gate | Date | Must be done |
 |---|---|---|
-| **Submissions open** | **Sat Nov 28** | M1, M3, M4, M5, **H** (hosting, on hold), plus M8's backend items (hosted `lights` schema exposed, SMS limits, window set) |
+| **Submissions open** | **Sat Nov 28** | M1, M3, M4, M5, **H** (hosting, on hold), plus the hosted rollout in [`docs/runbook-lights.md`](runbook-lights.md) Part A (`lights` exposed, SMS limits, window set; run by you, M8) |
 | **Voting opens** | **Tue Dec 8** | M6 (map + navigate), M7 (voting + reveal) |
 | **Voting closes** | **Sun Dec 20** | Reveal is flipped manually after close |
 
@@ -533,14 +533,22 @@ Today is Nov 12. The contest dates set three hard gates:
   closed → revealed) using the admin preview toggle.
 
 ### M8: Launch hardening
-- OG image and social meta for the lights site.
-- Expose the `lights` schema on hosted. Revisit the SMS rate limits, which are now
-  shared by both sites.
-- `contest-admin` runbook for windows/reveal/admin phone.
-- Playwright smoke tests for both apps in CI; accessibility pass.
-- **Done when:** the runbook has been rehearsed end to end against the hosted Supabase
-  project with test data, then wiped. Truncate only `lights.*` tables and the `houses`
-  bucket; the parade data lives in the same project.
+- Spec: [`docs/milestones/M8.md`](milestones/M8.md). Runbook:
+  [`docs/runbook-lights.md`](runbook-lights.md).
+- OG image and social meta for the lights site (a 1200×630 share card drawn from the site's
+  own components).
+- Playwright smoke tests for both apps in CI (GitHub Actions on a throwaway local stack, no
+  secrets, no deploys; the Vercel preview stays the deploy signal); axe accessibility pass.
+- `contest-admin` runbook for windows/pause/reveal/admin phone, and `tools/lights-wipe.mjs`,
+  which empties only `lights.*` and the `houses` bucket.
+- Follow-ups from earlier reviews: the map guard flake, the "Vote cast" flash and core's
+  `useResults` reading an error as "no results" (shared hooks change; the parade looks the same).
+- **Hosted items are an operator checklist for you** (runbook Parts A–C), because the agents
+  may not touch hosted Supabase, Vercel, Cloudflare or DNS: expose `lights` (after `db push`),
+  SMS limits, the hosted rehearsal with test data and the wipe, real phones on H's preview.
+- **Done when:** the runbook has been rehearsed end to end against the **local** stack with
+  test data, then wiped (only `lights.*` and the `houses` bucket; the parade untouched), and
+  the spec's acceptance criteria pass. You run the hosted rehearsal (Part B) before Nov 28.
 
 ### H: Hosting + DNS (on hold, must land before submissions open)
 - Confirm `worthingtonhills.org` uses Cloudflare DNS (a prerequisite for Worker custom
@@ -550,6 +558,8 @@ Today is Nov 12. The contest dates set three hard gates:
   `.vercelignore` and update the README.
 - Lights: create the `wh-holiday-lights` Worker via Workers Builds and attach
   **`holiday-lights.worthingtonhills.org`**.
+- On the first HTTPS preview: runbook Parts B and C (rehearsal, real iPhone/Android checks),
+  then the wipe, before Nov 28.
 - **Done when:** pushes to `main` deploy both apps via Workers Builds, both custom domains
   serve from Cloudflare, and Vercel is disconnected.
 

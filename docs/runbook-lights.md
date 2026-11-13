@@ -71,7 +71,7 @@ what M4–M8 added. The parade is live on the same project: read each step befor
 - [ ] **A1. Back up the parade data first.** `npx --yes supabase@3.1.0 link --project-ref <ref>`
   (if not linked), then
   `npx --yes supabase@3.1.0 db dump --linked --data-only -f ~/parade-backup-$(date +%F).sql`.
-  Keep the file private (it holds phone-linked votes). Nothing below should need it.
+  Keep the file private (it holds the parade's votes). Nothing below should need it.
 - [ ] **A2. See what's pending.** `npx --yes supabase@3.1.0 migration list`. Exactly these
   three should be local-only:
   - `20261112120000_parade_get_results_top3` (M2: the parade's `get_results()` returns the
@@ -176,6 +176,8 @@ HTTPS preview. Without the preview, run the site on your machine against hosted 
   It prints the parade's counts before and after and stops if they differ. Then, in the SQL
   editor, start entry numbers at 1 again (only while `lights.houses` is empty):
   `alter table lights.houses alter column entry_number restart with 1;`
+  (A refused entry still uses up a number, so if anyone tries to enter before Nov 28 the
+  first real entry may be No. 2. Harmless; numbers already have gaps after withdrawals.)
 - [ ] **B9. Put the decided settings back** (one command, every value explicit):
 
   ```sh
@@ -268,11 +270,11 @@ local URL and the service-role key from `npx --yes supabase@3.1.0 status -o env`
 The agents rehearsed Parts B and D against the **local** stack only (CLI 3.1.0, after
 `npx --yes supabase@3.1.0 db reset`), with a local env file in place of
 `~/lights-hosted.env` and the local test phones (15555550101/02, code 123456; 15555550100
-as the admin). The exact script and its output are in `docs/milestones/M8.md` (AC9).
+as the admin). The exact script and its output are in `docs/milestones/M8.md` (Appendix B, AC8).
 
 | Date | Who | Result |
 |---|---|---|
-| 2026-11-12 | M8 planning (prototype) | pending |
+| 2026-11-12 | M8 planning (prototype) | REHEARSAL OK: B3–B9 and D5 with these command lines; wrong `--yes` refused; parade counts and settings identical before and after; found the used-up entry number (B8 note) |
 | | M8 implementation | |
 
 What the local rehearsal can't prove: the hosted dashboard steps (A4, A6–A8, A11, B1, B10),
