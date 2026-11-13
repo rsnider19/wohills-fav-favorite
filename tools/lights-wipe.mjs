@@ -56,27 +56,38 @@ async function count(schema, table) {
     method: 'HEAD',
     headers: { 'Accept-Profile': schema, Prefer: 'count=exact' },
   })
-  return Number(res.headers.get('content-range')?.split('/')[1] ?? NaN)
+  const total = Number(res.headers.get('content-range')?.split('/')[1])
+  // A missing count would read as NaN, which is falsy and equal to itself in JSON ("null"):
+  // the leftover and parade checks below would pass without having checked anything.
+  if (!Number.isInteger(total)) fail(`No row count for ${schema}.${table}; stopping`)
+  return total
 }
 
 /** Every object path in a bucket. Owners' photos sit one folder deep (<uid>/<file>); deeper
  *  folders are walked too, so nothing is left behind. */
 async function listAll(bucket, prefix = '') {
   const paths = []
-  for (let offset = 0; ; offset += 1000) {
+  const seen = new Set()
+  for (let offset = 0; ; ) {
     const res = await call(`/storage/v1/object/list/${bucket}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prefix, limit: 1000, offset, sortBy: { column: 'name', order: 'asc' } }),
     })
     const items = await res.json()
+    if (!Array.isArray(items)) fail(`Unexpected listing of ${bucket}/${prefix}: ${JSON.stringify(items).slice(0, 200)}`)
+    // Stop only on an empty page: a server that caps the page below 1000 would otherwise end
+    // the walk early and the "nothing left" check would count with the same short listing.
+    if (items.length === 0) return paths
     for (const item of items) {
       const path = prefix ? `${prefix}/${item.name}` : item.name
+      if (seen.has(path)) fail(`The listing of ${bucket}/${prefix} repeated ${path}; stopping`)
+      seen.add(path)
       // Folders come back with a null id.
       if (item.id === null) paths.push(...(await listAll(bucket, path)))
       else paths.push(path)
     }
-    if (items.length < 1000) return paths
+    offset += items.length
   }
 }
 
@@ -115,8 +126,11 @@ if (args.yes !== host) fail(`--yes ${args.yes} does not match the target ${host}
 // Rows first (votes cascade with their house anyway), then the photos: the same order as
 // an owner's withdrawal.
 const lights = { 'Accept-Profile': 'lights', 'Content-Profile': 'lights' }
-await call('/rest/v1/votes?user_id=not.is.null', { method: 'DELETE', headers: lights })
-await call('/rest/v1/houses?id=not.is.null', { method: 'DELETE', headers: lights })
+// Each filter names a column only the lights table has (public.votes has user_id but no
+// house_id; there is no public.houses), so if the profile header were ever dropped on the way
+// PostgREST would refuse the request instead of emptying the parade's votes.
+await call('/rest/v1/votes?house_id=not.is.null', { method: 'DELETE', headers: lights })
+await call('/rest/v1/houses?address_key=not.is.null', { method: 'DELETE', headers: lights })
 const photos = await listAll('houses')
 for (let i = 0; i < photos.length; i += 100) {
   await call('/storage/v1/object/houses', {
