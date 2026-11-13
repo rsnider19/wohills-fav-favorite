@@ -6,6 +6,7 @@ import {
   useIsAdmin,
   useMyVote,
   useNow,
+  useResults,
   useSecretTaps,
   useSession,
   useSupabase,
@@ -13,6 +14,7 @@ import {
 } from '@wohills/core'
 import { Marquee, PhoneAuthDialog, Toaster } from '@wohills/ui'
 import type { House, LightsSettings } from './types'
+import type { LightsResult } from './lib/reveal'
 import {
   contestStatus,
   type Phase,
@@ -43,7 +45,6 @@ import { Podium } from './components/Podium'
 import { Note } from './components/Page'
 import { ballotState, countedPick, isNetworkError, pickWasHidden, voteProblem, windowShut, type VoteFacts } from './lib/ballot'
 import { podiumRows, samplePodium } from './lib/reveal'
-import { useLightsResults } from './lib/results'
 
 const toDate = (iso: string | null) => (iso ? new Date(iso) : null)
 
@@ -96,12 +97,12 @@ export default function App() {
   // waits in `pendingVote` through the sign-in, and useMyVote holds its read meanwhile.
   const [pendingVote, setPendingVote] = useState<House | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
-  const { myVote, vote } = useMyVote(session, { column: 'house_id', paused: pendingVote !== null })
+  const { myVote, loading: voteLoading, vote } = useMyVote(session, { column: 'house_id', paused: pendingVote !== null })
   // Real results only once the database has revealed them; get_results() returns nothing
   // before that, even for the admin (M3 lights_30). The admin's ?preview=results shows a
   // sample podium instead, with no counts (lib/reveal.ts). A failed call keeps "loading"
-  // (lib/results.ts), so it never reads as "no votes were cast".
-  const { results, loading: resultsLoading } = useLightsResults(liveSettings.results_visible)
+  // (core's useResults), so it never reads as "no votes were cast".
+  const { results, loading: resultsLoading } = useResults<LightsResult>(liveSettings.results_visible)
   const sample = previewing && preview === 'results' && !liveSettings.results_visible
 
   // Callbacks handed to the memoized cards read the latest values from here, so they
@@ -261,7 +262,10 @@ export default function App() {
   // cards re-render when a vote, the window or the session changes, never on a clock tick.
   const uid = session?.user.id ?? null
   const pick = countedPick(myVote, houses)
-  const ballotPhase = settingsLoading ? null : status.phase
+  // No vote control until the settings and the visitor's stored vote are known: before
+  // that a voter would be offered "Vote for this house" on every card (and a tap would
+  // toast "cast" for what is really a switch).
+  const ballotPhase = settingsLoading || voteLoading ? null : status.phase
   const { votingOpen, votingPaused } = status
   const opensAt = settings.voting_opens_at
   const ballotFor = useCallback(

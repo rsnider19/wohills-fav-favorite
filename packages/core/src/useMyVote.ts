@@ -15,11 +15,21 @@ export interface MyVoteOptions {
 export function useMyVote(
   session: Session | null,
   { column, table = 'votes', paused = false }: MyVoteOptions,
-): { myVote: string | null; vote: (targetId: string) => Promise<{ error: PostgrestError | null }> } {
+): {
+  myVote: string | null
+  /** True while signed in and this user's stored vote hasn't been read yet (never while
+   *  `paused`). Until then `myVote` is null even if the user has voted, so an app can hold
+   *  its vote controls instead of offering "Vote" to someone who already has. */
+  loading: boolean
+  vote: (targetId: string) => Promise<{ error: PostgrestError | null }>
+} {
   const client = useSupabase()
   const userId = session?.user.id ?? null
   // Tagged with the user it belongs to, so a sign-out or account switch never shows a stale pick.
   const [fetched, setFetched] = useState<{ userId: string; id: string | null } | null>(null)
+  // The user whose read has finished, answered or not: a failed read ends the wait too
+  // (the database still decides; only the label could be off).
+  const [settledFor, setSettledFor] = useState<string | null>(null)
   // Bumped by every successful vote(), so a read that was already in flight
   // can't put the previous pick back on screen.
   const votes = useRef(0)
@@ -33,8 +43,10 @@ export function useMyVote(
       .select(column)
       .maybeSingle<Record<string, string | null>>()
       .then(({ data, error }) => {
+        if (cancelled) return
+        setSettledFor(userId)
         // On an error keep what we have (e.g. the vote just cast) instead of showing "no vote".
-        if (cancelled || error || votes.current !== votesAtStart) return
+        if (error || votes.current !== votesAtStart) return
         setFetched({ userId, id: data?.[column] ?? null })
       })
     return () => {
@@ -58,6 +70,8 @@ export function useMyVote(
     [client, table, column, userId],
   )
 
-  const myVote = userId && fetched?.userId === userId ? fetched.id : null
-  return { myVote, vote }
+  const known = fetched?.userId === userId
+  const myVote = userId && known ? fetched.id : null
+  const loading = userId !== null && !paused && !known && settledFor !== userId
+  return { myVote, loading, vote }
 }

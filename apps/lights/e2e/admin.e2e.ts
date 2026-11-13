@@ -5,7 +5,7 @@ test.beforeEach(async () => {
   await resetLights()
 })
 
-test('approve: a new entry goes from the queue to the lineup', async ({ page, context }) => {
+test('approve: a new entry goes from the queue to the lineup', { tag: '@smoke' }, async ({ page, context }) => {
   const { entry_number } = await createEntryAs(PHONE.other, { address: '7410 Test Dr', title: 'E2E Approve Me' })
   await signInAs(context, PHONE.admin)
   await stubNetwork(page)

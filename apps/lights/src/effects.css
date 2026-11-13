@@ -1558,3 +1558,10 @@ body::after {
   8%, 84% { opacity: 0.86; }
   100% { opacity: 0; }
 }
+
+/* ---------------------------------------------------------------------------------------
+   16. Launch fixes (M8).
+   ------------------------------------------------------------------------------------- */
+/* "3rd place" reads in a lighter red: the full bulb red under its own red glow measured
+   3.9:1 (axe counts the text-shadow as background); the glow keeps the bulb red. */
+[data-slot="podium-slot"][data-rank="3"] [data-slot="podium-place"] { color: #ff7a85; }

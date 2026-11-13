@@ -28,6 +28,8 @@ const contrast = (a: RGB, b: RGB) => {
   return (hi + 0.05) / (lo + 0.05)
 }
 const t = (name: string) => hex(tokens[name])
+/** The 3rd-place text color from effects.css section 16 (M8). */
+const PLACE_3 = (effectsCss.match(/\[data-rank="3"\] \[data-slot="podium-place"\] \{ color: (#[0-9a-f]{6}); \}/) ?? [])[1] ?? '#000000'
 
 // Backgrounds that are literals in effects.css (not tokens).
 const SKY_ZENITH = hex('#0f1a45') // brightest point of the sky gradient, behind the hero
@@ -71,7 +73,10 @@ const PAIRS: [string, RGB, RGB, number][] = [
   ['"Voting closed" (fg/75) on a card', over(t('fg'), 0.75, t('surface')), t('surface'), 4.5],
   ['ribbon gold on its dark pill over a photo', t('primary'), over(t('bg'), 0.85, hex('#ffffff')), 4.5],
   ['podium place: 2nd (warm white) on a card', t('bulb-white'), t('surface'), 4.5],
-  ['podium place: 3rd (red) on a card', t('bulb-red'), t('surface'), 4.5],
+  // M8: axe counts the red glow under "3rd place" as its background (3.9:1), so the text is
+  // a lighter red (effects.css section 16; 7.4:1 here) and the glow stays bulb red. The axe
+  // e2e test (a11y.e2e.ts) is the guard for the glow itself.
+  ['podium place: 3rd (light red) on a card', hex(PLACE_3), t('surface'), 4.5],
   ['podium vote count (gold) on a card', t('bulb-gold'), t('surface'), 4.5],
   ['sign letter: red', t('bulb-red'), t('bg'), 3],
   ['sign letter: green', t('bulb-green'), t('bg'), 3],

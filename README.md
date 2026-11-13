@@ -222,10 +222,31 @@ SHOOT=1 npm run e2e:lights -- screenshots-m7        # the M7 screenshots (voting
 ```
 
 `reveal.e2e.ts` includes the WCAG 2.3.1 flash probe on the reveal (about two minutes; it steps
-every animation through the 7-second surge and counts flashes).
+every animation through the 7-second surge and counts flashes). `a11y.e2e.ts` runs axe
+(WCAG 2.2 A/AA) on every lights screen, phone and desktop.
+
+The parade has a smoke test of its own (ballot, sign in and vote, the reveal, plus axe), and
+the tests tagged `@smoke` in both apps make a one-minute subset:
+
+```sh
+npm run e2e:parade                                  # its own dev server on :5176
+npm run e2e:smoke                                   # @smoke tests of both apps (~1 min)
+```
+
+**CI** (`.github/workflows/ci.yml`, GitHub Actions): on every pull request, lint, types, unit
+tests and both builds, then a throwaway local Supabase stack on the runner with pgTAP and
+`npm run e2e:smoke`. No secrets and no deploys; the Vercel preview stays the deploy check. Run
+the workflow by hand with "full" for every e2e test (about 8 minutes).
+
+**Share card:** `apps/lights/public/og.jpg` (1200×630, the `og:image`) is drawn from
+`apps/lights/og-card.html` with `npm run og-image -w apps/lights` (needs Google Fonts).
 
 The tests stub the address lookup (`geocode` function) in the browser, because the local
 edge runtime can't reach the Census geocoder from a sandbox (M3 D19).
+
+**Running the contest:** [`docs/runbook-lights.md`](docs/runbook-lights.md) has the hosted
+rollout checklist, the rehearsal and the wipe (`node tools/lights-wipe.mjs`), the
+`contest-admin` commands for windows, pauses and the reveal, and what to do in an emergency.
 
 `apps/lights/wrangler.jsonc` is staged for the Cloudflare move (hosting is on hold); nothing
 deploys the lights app yet, and Vercel still builds only the parade.
@@ -287,8 +308,11 @@ apps/parade/                         the 4th of July parade site (Vite app)
   src/components/AdminEditButton.tsx  day-of float text edits (admin only)
   src/copy.ts                         parade wording for the shared components
   src/lib/supabase.ts                client init from VITE_* env vars
+  e2e/  playwright.config.ts         Playwright smoke test (local stack only)
 apps/lights/                         the holiday lights site (Vite app; local only for now)
   index.html  vite.config.ts  wrangler.jsonc  .env.example  public/favicon.svg
+  public/og.jpg  og-card.html  src/og/  scripts/og-image.mjs
+                                     the share card and how it is drawn (`npm run og-image`)
   src/App.tsx                        app shell: settings, houses, phase, sign-in, pages
   src/index.css  src/effects.css     theme tokens and every light effect (guardrails inside)
   src/copy.ts                        all lights wording
@@ -329,7 +353,9 @@ supabase/                            shared Supabase project (all contests)
   seed.sql                           parade floats (theme, street, photo)
   seed_lights.sql                    local-only lights houses, test users and votes
 tools/contest-admin.mjs              applies contest settings / admin phone (`--contest parade|lights`)
-docs/                                plan and per-milestone specs
+tools/lights-wipe.mjs                wipes the lights data only (rehearsal clean-up; dry run by default)
+.github/workflows/ci.yml             PR checks + Playwright smoke tests on a local stack (no deploys)
+docs/                                plan, per-milestone specs and the lights runbook
 package.json                         npm workspaces root (apps/*, packages/*)
 tsconfig.base.json                   shared TypeScript options
 eslint.config.js                     shared lint config

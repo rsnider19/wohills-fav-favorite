@@ -288,7 +288,9 @@ export async function checkGuards(page: Page, screen: string) {
     const overflow = document.documentElement.scrollWidth - window.innerWidth
     const small = [...document.querySelectorAll<HTMLElement>('button, a[href], input:not([type=file])')]
       .filter((el) => el.offsetParent !== null && !el.closest('.maplibregl-ctrl-attrib'))
-      .map((el) => ({ el, h: el.getBoundingClientRect().height }))
+      // Rounded to Chromium's layout unit (1/64 px): MapLibre's marker transforms leave a
+      // 44px bulb measuring 43.99998px, a float artifact, not a smaller target.
+      .map((el) => ({ el, h: Math.round(el.getBoundingClientRect().height * 64) / 64 }))
       .filter(({ h }) => h > 0 && h < 44)
       .map(({ el, h }) => `${el.tagName.toLowerCase()} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 30)}" ${h.toFixed(0)}px`)
     return { overflow, small }

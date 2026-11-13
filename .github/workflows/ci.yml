@@ -1,0 +1,74 @@
+# Checks and Playwright smoke tests for both apps (M8). Everything runs on the runner against
+# a throwaway LOCAL Supabase stack built from supabase/ (migrations + seeds). Nothing here
+# needs a credential or publishes anything, and nothing hosted is touched. The preview build
+# on each PR stays the signal that matters; these jobs are informational unless branch
+# protection is changed to require them.
+name: ci
+
+on:
+  pull_request:
+    paths-ignore: ['docs/**', '**/*.md']
+  workflow_dispatch:
+    inputs:
+      full:
+        description: 'Run every e2e test (about 8 minutes, flash probe included) instead of the @smoke subset'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npx tsc -b
+      - run: npm test
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_ANON_KEY: dummy
+
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      # Only what the tests use: db, auth, rest, storage and the gateway.
+      - run: npx --yes supabase@3.1.0 start -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+      - name: Export the local stack's URL and keys
+        run: npx --yes supabase@3.1.0 status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=' | tr -d '"' >> "$GITHUB_ENV"
+      - name: Database rules (pgTAP)
+        run: npx --yes supabase@3.1.0 test db
+      - name: Smoke tests (both apps)
+        if: ${{ !inputs.full }}
+        run: npm run e2e:smoke
+      - name: Every test (both apps)
+        if: ${{ inputs.full }}
+        run: npm run e2e:lights && npm run e2e:parade
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: apps/*/test-results/
+          retention-days: 7
+      - if: always()
+        run: npx --yes supabase@3.1.0 stop --no-backup

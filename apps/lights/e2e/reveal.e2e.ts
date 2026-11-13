@@ -15,7 +15,7 @@ const podium = (page: Page) => page.locator('[data-slot="podium"]')
 const slot = (page: Page, rank: number) => page.locator(`[data-slot="podium-slot"][data-rank="${rank}"]`)
 const toWinners = (page: Page) => page.locator('#winners').evaluate((el) => el.scrollIntoView({ block: 'start', behavior: 'instant' }))
 
-test('the reveal flips with contest-admin while the page is open, and the power surge plays once', async ({ page }) => {
+test('the reveal flips with contest-admin while the page is open, and the power surge plays once', { tag: '@smoke' }, async ({ page }) => {
   await stubNetwork(page)
   const asked: string[] = []
   page.on('request', (r) => r.url().includes('/rpc/get_results') && asked.push(r.url()))
