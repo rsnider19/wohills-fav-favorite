@@ -41,7 +41,7 @@ withdraw until voting opens.
   pressing Enter on anything that writes.
 - **The parade shares the project.** Every hosted step below changes only the `lights`
   schema, the `houses` bucket, or a setting both sites share (Auth, SMS). Never run
-  `supabase db reset --linked`, never run `supabase/seed*.sql` on hosted, and never delete
+  `supabase db reset --remote` (or `--linked`), never run `supabase/seed*.sql` on hosted, and never delete
   from `public.*` or the `floats` bucket.
 - **An old local stack on your own machine.** If `npx --yes supabase@3.1.0 start` fails with
   `supabase_rest_… 503` after pulling the lights migrations, run
@@ -70,10 +70,15 @@ what M4–M8 added. The parade is live on the same project: read each step befor
 
 - [ ] **A1. Back up the parade data first.** `npx --yes supabase@3.1.0 link --project-ref <ref>`
   (if not linked), then
-  `npx --yes supabase@3.1.0 db dump --linked --data-only -f ~/parade-backup-$(date +%F).sql`.
+  `npx --yes supabase@3.1.0 db dump --remote --data-only -f ~/parade-backup-$(date +%F).sql`.
   Keep the file private (it holds the parade's votes). Nothing below should need it.
-- [ ] **A2. See what's pending.** `npx --yes supabase@3.1.0 migration list`. Exactly these
-  three should be local-only:
+
+  > **`--remote` on every database command here.** In CLI 3.x, `db push`, `db dump` and
+  > `migration list` target the **local** stack unless you pass `--remote` (older CLIs and
+  > M3's notes used the linked project by default). Without it, A3 would "push" to your
+  > local database and A4 would then expose a schema the hosted project doesn't have.
+- [ ] **A2. See what's pending.** `npx --yes supabase@3.1.0 migration list --remote`. Exactly
+  these three should be local-only (a Local version with an empty Remote column):
   - `20261112120000_parade_get_results_top3` (M2: the parade's `get_results()` returns the
     top 3 only. The parade already shows only 3, so nothing visible changes; it was never
     pushed to hosted.)
@@ -81,13 +86,16 @@ what M4–M8 added. The parade is live on the same project: read each step befor
   - `20261113000100_lights_storage`
 
   Anything else listed as local-only: stop and ask before pushing.
-- [ ] **A3. Dry run, then push.** `npx --yes supabase@3.1.0 db push --dry-run`, check it lists
-  only those three, then `npx --yes supabase@3.1.0 db push`. This creates the `lights`
+- [ ] **A3. Dry run, then push.** `npx --yes supabase@3.1.0 db push --remote --dry-run`, check
+  it lists only those three, then `npx --yes supabase@3.1.0 db push --remote`. Run
+  `npx --yes supabase@3.1.0 migration list --remote` again: all seven versions now have a
+  Remote column. In the SQL editor, `select count(*) from lights.settings;` must print `1`.
+  Don't start A4 until both are true. This creates the `lights`
   schema, its RLS, the settings row with the decided dates and the drafted geofence, and the
   public `houses` bucket (10 MB, jpeg/png/webp) with its policies. Seeds are **not** applied
   (never pass `--include-seed`; `seed_lights.sql` also refuses to run on a database with real
   phones).
-- [ ] **A4. Expose the schema, after A3, never before.** Dashboard → Project Settings → Data
+- [ ] **A4. Expose the schema, after A3 (and its two checks), never before.** Dashboard → Project Settings → Data
   API → Exposed schemas: add `lights`, keep `public` and `graphql_public`, Save. (Exposing a
   schema that doesn't exist yet stops PostgREST from loading, which would take the parade's
   API down.) Then open the parade site and check it still shows its results.
@@ -131,8 +139,19 @@ what M4–M8 added. The parade is live on the same project: read each step befor
   Check CARTO's current terms against a few thousand map views over the contest; swapping the
   style is one constant (`MAP_STYLE_URL`).
 
-**Rollback** (only before real entries exist): the SQL in M3 "Hosted rollback", then remove
-`lights` from Exposed schemas and empty + delete the `houses` bucket.
+**Rollback** (only before real entries exist), **in this order** (the reverse of A3–A4: an
+exposed schema that no longer exists stops PostgREST from loading, the parade's API included):
+
+1. Empty the lights data while the schema is still exposed (the tool reads it through the
+   API): `node tools/lights-wipe.mjs --env-file ~/lights-hosted.env`, then the same with
+   `--yes <ref>.supabase.co` (B8).
+2. Dashboard → Project Settings → Data API → Exposed schemas: remove `lights`, Save. Check
+   the parade site still shows its results.
+3. SQL editor: the SQL in M3 "Hosted rollback" (`docs/milestones/M3.md`), **except its last
+   comment line**, which this list replaces. It drops the `houses` policies, the `lights`
+   schema and the two lights migration rows; the parade's top-3 `get_results()` stays.
+4. Dashboard → Storage: delete the (now empty) `houses` bucket. Optionally
+   `npx --yes supabase@3.1.0 functions delete geocode`.
 
 ## B. Hosted rehearsal with test data, then the wipe (operator; not done by the agents)
 
@@ -248,7 +267,7 @@ local URL and the service-role key from `npx --yes supabase@3.1.0 status -o env`
 - **D6. The geofence:** `GEOFENCE=minLat,maxLat,minLng,maxLng …`. Widening it is always safe;
   narrowing it never removes existing entries, but their owners can't edit them while outside.
 - **D7. After the contest:** leave the results up. Put the SMS rate limit back (A7). Before a
-  next season, archive with `npx --yes supabase@3.1.0 db dump --linked --data-only --schema lights -f ~/lights-2026.sql`,
+  next season, archive with `npx --yes supabase@3.1.0 db dump --remote --data-only --schema lights -f ~/lights-2026.sql`,
   then wipe (B8) and set new dates.
 
 ## E. Emergencies
