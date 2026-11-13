@@ -275,7 +275,7 @@ as the admin). The exact script and its output are in `docs/milestones/M8.md` (A
 | Date | Who | Result |
 |---|---|---|
 | 2026-11-12 | M8 planning (prototype) | REHEARSAL OK: B3–B9 and D5 with these command lines; wrong `--yes` refused; parade counts and settings identical before and after; found the used-up entry number (B8 note) |
-| | M8 implementation | |
+| 2026-11-13 | M8 implementation | REHEARSAL OK against the local stack with Appendix B: dry run, wrong `--yes` refused, wipe (0 houses, 0 votes, 0 photos), entries No. 2 and No. 3 (the refused early insert used No. 1), approval, own-house/paused/closed votes refused, one vote counted, `get_results` #1 No. 2, wipe again; parade counts and settings checksums identical before and after. Every command line matched the runbook; nothing needed fixing |
 
 What the local rehearsal can't prove: the hosted dashboard steps (A4, A6–A8, A11, B1, B10),
 real SMS, real Census lookups (the local edge runtime can't reach Census from the sandbox;
