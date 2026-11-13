@@ -11,15 +11,31 @@
     <meta name="theme-color" content="#05060d" />
     <meta name="color-scheme" content="dark" />
 
-    <!-- Open Graph / social share. M8 adds og:image (and twitter:image) with the share card. -->
+    <!-- Open Graph / social share. The card is public/og.jpg (1200×630), drawn from og-card.html
+         by `npm run og-image -w apps/lights`. Absolute URLs: share scrapers need them. If the
+         card changes, give it a new file name so apps that cached the old one fetch it again. -->
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Worthington Hills Holiday Lights" />
     <meta property="og:url" content="https://holiday-lights.worthingtonhills.org/" />
     <meta property="og:title" content="Holiday Lights · Worthington Hills" />
     <meta
       property="og:description"
       content="The Worthington Hills holiday lights showdown. Light up your house, find the brightest displays, and vote for your favorite."
     />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:image" content="https://holiday-lights.worthingtonhills.org/og.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Holiday Lights, Worthington Hills 2026: vote for the brightest house Dec 8–20. Enter your house Nov 28 – Dec 15."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://holiday-lights.worthingtonhills.org/og.jpg" />
+    <meta
+      name="twitter:image:alt"
+      content="Holiday Lights, Worthington Hills 2026: vote for the brightest house Dec 8–20. Enter your house Nov 28 – Dec 15."
+    />
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
