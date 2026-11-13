@@ -11,12 +11,15 @@ export interface HouseCardProps {
   badge?: ReactNode
   /** Footer row (M6: navigate button; M7: vote button). Nothing in M4. */
   actions?: ReactNode
+  /** The title's heading level: h3 under the lineup's h2 (default), h2 where the card sits
+   *  right under the page's h1 (My entry), so headings never skip a level. */
+  heading?: 'h2' | 'h3'
   className?: string
 }
 
 /** One house in the lineup: photo in a marquee bulb frame, number, name, address. */
 // Memoized: the app re-renders every second for the countdown; cards don't need to.
-export const HouseCard = memo(function HouseCard({ house, lit = false, badge, actions, className }: HouseCardProps) {
+export const HouseCard = memo(function HouseCard({ house, lit = false, badge, actions, heading: Heading = 'h3', className }: HouseCardProps) {
   const [photoFailed, setPhotoFailed] = useState(false)
   const title = house.title ?? house.address
   return (
@@ -53,7 +56,7 @@ export const HouseCard = memo(function HouseCard({ house, lit = false, badge, ac
         {badge && <div className="absolute top-2.5 right-2.5 z-10">{badge}</div>}
       </div>
       <div className="flex grow flex-col gap-1.5 px-4 pt-4 pb-5">
-        <h3 data-slot="house-title">{title}</h3>
+        <Heading data-slot="house-title">{title}</Heading>
         {house.title && (
           <p data-slot="house-address" className="flex items-start gap-1.5 text-sm text-fg/75">
             <svg width="14" height="14" viewBox="0 0 24 24" className="mt-0.5 flex-none" aria-hidden="true">

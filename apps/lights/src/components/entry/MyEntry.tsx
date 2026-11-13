@@ -55,7 +55,7 @@ export function MyEntry({ entry, canEdit, votingStarted, votingOpensAt, onEdit, 
       </p>
 
       <div className="mx-auto max-w-sm">
-        <HouseCard house={entry} />
+        <HouseCard house={entry} heading="h2" />
       </div>
 
       {entry.status === 'approved' && (

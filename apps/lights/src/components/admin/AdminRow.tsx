@@ -26,7 +26,7 @@ export function AdminRow({ row, busy, onStatus, onEdit, onDelete }: Props) {
           </span>
           <StatusPill status={row.status} />
         </div>
-        <h3 data-slot="house-title">{row.title ?? <span className="text-fg/75">{ADMIN.noTitle}</span>}</h3>
+        <h2 data-slot="house-title">{row.title ?? <span className="text-fg/75">{ADMIN.noTitle}</span>}</h2>
         <p className="text-fg/85">{row.address}</p>
         <p className="text-sm text-fg/75">
           {ADMIN.submitted(row.created_at)}
