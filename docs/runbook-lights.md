@@ -157,7 +157,10 @@ exposed schema that no longer exists stops PostgREST from loading, the parade's 
    the parade site still shows its results.
 3. SQL editor: the SQL in M3 "Hosted rollback" (`docs/milestones/M3.md`), **except its last
    comment line**, which this list replaces. It drops the `houses` policies, the `lights`
-   schema and the two lights migration rows; the parade's top-3 `get_results()` stays.
+   schema and the two lights migration rows; the parade's top-3 `get_results()` stays. Then
+   also forget the geofence polygon migration, which came after M3 (otherwise a later push
+   would skip it and the lights site would ask for a column that no longer exists):
+   `delete from supabase_migrations.schema_migrations where version = '20261114000000';`
 4. Dashboard → Storage: delete the (now empty) `houses` bucket. Optionally
    `npx --yes supabase@3.1.0 functions delete geocode`.
 
