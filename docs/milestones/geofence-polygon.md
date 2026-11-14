@@ -137,3 +137,51 @@ Reference points, checked against the polygon:
    - Afterwards, the stack is back to the migration's values (`db reset`).
 5. The parade `dist` is byte-identical to `origin/main`'s build.
 6. The working tree is clean, and nothing hosted is touched.
+
+## Implementation notes
+
+Commits on `ccr-d8fa11eb-d78hzt` after the spec (975c165): the database, the app/geocoder/tool,
+then docs and the final checks (see the PR for SHAs).
+
+### Choices and deviations
+- **No deviation from D1–D10.** Choices the spec left open:
+- **Point-in-polygon in SQL (D2): the native `polygon @> point`**, with the polygon built from
+  the jsonb vertices on each call (`point = (lng, lat)`). It is built in, counts boundary points
+  as inside like the box does, and takes an open or closed ring. It is `stable`, `set search_path = ''`,
+  with the same signature and grants, so the RLS policies are untouched. The cost is a 36-vertex
+  string build per call, which is nothing at this scale.
+- **Validator (D3)** is `lights.geofence_polygon_valid(jsonb)`, immutable, using nested `CASE`
+  rather than `AND` so a string vertex returns false instead of raising a cast error (SQL does not
+  promise short-circuiting). The pgTAP tests assert SQLSTATE 23514 for each bad shape. I
+  `revoke`d PUBLIC execute on it: an existing schema test requires that no `lights` function is
+  PUBLIC-executable (service_role keeps execute through the default privileges).
+- **Closed ring in the migration and the GeoJSON.** The traced file repeats its first vertex at
+  the end (36 entries). The migration embeds exactly the file's numbers, closed. The code accepts
+  both forms (tested in pgTAP, `geo.ts`, `census.ts`).
+- **App default (D7)** is a small hand-kept module, `apps/lights/src/lib/geofence-default.ts`,
+  rather than importing the GeoJSON (Vite only treats `.json` as JSON and the file is outside the
+  app root). The D4 test checks the GeoJSON, the migration literal and this module against each
+  other, so a drift fails `npm test`. Lights main bundle: 99.48 KB gzip (limit 155).
+- **Components take a `fence` prop** (the settings columns) instead of a `box`: `SubmitWizard`
+  and `PlaceStep` decide "inside" with `inGeofence`, and `PlaceStep` derives the box for the
+  mini-map. `App.tsx` keeps the box for the lineup map's pan limit and fallback view.
+- **Geocoder with a malformed polygon.** `toGeofence` returns null (so `geofence_unavailable`,
+  HTTP 500) when `geofence_polygon` is present but malformed. The database check makes that
+  impossible, and silently falling back to the box would let out-of-polygon matches through.
+- **contest-admin.** The polygon parsing is in `tools/geofence-polygon.mjs` (unit tested in
+  `tools/geofence.test.ts`). It accepts a bare Polygon, a Feature or a one-feature collection
+  with exactly one ring and no holes. The tool has no local/remote guard of its own, so none was
+  changed. `GEOFENCE_POLYGON` is resolved from the current directory.
+- **Docs.** Runbook A2/A3 now list four pending migrations (and eight versions after the push),
+  which the new migration requires. `apps/lights/.env.example` documents the new variable. I left
+  the M3 migration's "FOR THE USER TO CONFIRM" comment alone (the new migration's header explains
+  the supersession) and the M3 and later milestone docs as written history.
+
+### Seed and test points
+All reference points match the table. Every seeded house (`seed_lights.sql`), every point in
+`e2e/helpers.ts`, the e2e stubs (1283/-83.0466, the Candlewood points), and the pgTAP fixtures
+(Blackstone Dr 40.1370/-83.0590, Candlewood, Blind Brook, Clubview, Shelley Ct) were checked
+against the polygon and are inside. **No seed or test point was moved.**
+
+### Acceptance criteria
+See the results below (filled in after the final run).

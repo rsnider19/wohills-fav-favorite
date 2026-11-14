@@ -78,20 +78,22 @@ what M4–M8 added. The parade is live on the same project: read each step befor
   > M3's notes used the linked project by default). Without it, A3 would "push" to your
   > local database and A4 would then expose a schema the hosted project doesn't have.
 - [ ] **A2. See what's pending.** `npx --yes supabase@3.1.0 migration list --remote`. Exactly
-  these three should be local-only (a Local version with an empty Remote column):
+  these four should be local-only (a Local version with an empty Remote column):
   - `20261112120000_parade_get_results_top3` (M2: the parade's `get_results()` returns the
     top 3 only. The parade already shows only 3, so nothing visible changes; it was never
     pushed to hosted.)
   - `20261113000000_lights_schema`
   - `20261113000100_lights_storage`
+  - `20261114000000_lights_geofence_polygon` (the contest area becomes the neighborhood's real
+    shape instead of a box)
 
   Anything else listed as local-only: stop and ask before pushing.
 - [ ] **A3. Dry run, then push.** `npx --yes supabase@3.1.0 db push --remote --dry-run`, check
-  it lists only those three, then `npx --yes supabase@3.1.0 db push --remote`. Run
-  `npx --yes supabase@3.1.0 migration list --remote` again: all seven versions now have a
+  it lists only those four, then `npx --yes supabase@3.1.0 db push --remote`. Run
+  `npx --yes supabase@3.1.0 migration list --remote` again: all eight versions now have a
   Remote column. In the SQL editor, `select count(*) from lights.settings;` must print `1`.
   Don't start A4 until both are true. This creates the `lights`
-  schema, its RLS, the settings row with the decided dates and the drafted geofence, and the
+  schema, its RLS, the settings row with the decided dates and the geofence polygon, and the
   public `houses` bucket (10 MB, jpeg/png/webp) with its policies. Seeds are **not** applied
   (never pass `--include-seed`; `seed_lights.sql` also refuses to run on a database with real
   phones).
@@ -122,11 +124,17 @@ what M4–M8 added. The parade is live on the same project: read each step befor
   `image/jpeg, image/png, image/webp`. `floats` is unchanged.
 - [ ] **A9. Settings and the geofence.**
   `npm run contest-admin -- --contest lights --env-file ~/lights-hosted.env --show` prints
-  the decided dates and the geofence `lat 40.1175..40.145, lng -83.067..-83.0305`.
-  **You must confirm the geofence** (M3 "Geofence"): paste the corners
-  (40.1175,-83.0670 and 40.1450,-83.0305) into a map and check every Worthington Hills
-  street is inside. To change it:
-  `GEOFENCE=minLat,maxLat,minLng,maxLng npm run contest-admin -- --contest lights --env-file ~/lights-hosted.env`.
+  the decided dates and `geofence  polygon (36 vertices) in lat 40.1179..40.13877, lng
+  -83.06427..-83.03402`. The geofence is confirmed (the site owner signed off the traced
+  outline on 2026-11-14) and is a polygon: the union of the Worthington Hills, Worthington
+  Hills Village, Worthington Hills North and Woods of Worthington Hills North outlines,
+  following Route 315 on the east side, grown 30 m so a house on the edge isn't rejected when
+  the Census geocoder places it a little off. The shape lives in
+  `supabase/geofence/worthington-hills.geojson`. To change it, edit that file (or point at
+  another GeoJSON Polygon) and run
+  `GEOFENCE_POLYGON=supabase/geofence/worthington-hills.geojson npm run contest-admin -- --contest lights --env-file ~/lights-hosted.env`.
+  That sets the polygon and derives the four box columns in one update. (`GEOFENCE=minLat,maxLat,minLng,maxLng`
+  still works, but it sets a plain box and clears the polygon; setting both is an error.)
 - [ ] **A10. Admin phone.** SQL editor: `select admin_phone from public.admin_config;` must be
   the admin's phone (digits, e.g. `1614…`). It is shared with the parade; change it only with
   `ADMIN_PHONE=… npm run contest-admin -- --contest lights --env-file ~/lights-hosted.env`.
@@ -264,8 +272,10 @@ local URL and the service-role key from `npx --yes supabase@3.1.0 status -o env`
 - **D5. The admin phone** is shared with the parade:
   `ADMIN_PHONE=1614XXXXXXX npm run contest-admin -- --contest lights --env-file …`
   (`ADMIN_PHONE=` with nothing clears it).
-- **D6. The geofence:** `GEOFENCE=minLat,maxLat,minLng,maxLng …`. Widening it is always safe;
-  narrowing it never removes existing entries, but their owners can't edit them while outside.
+- **D6. The geofence** is a polygon: `GEOFENCE_POLYGON=<path to a GeoJSON Polygon> …` (see A9). To
+  fall back to a plain rectangle: `GEOFENCE=minLat,maxLat,minLng,maxLng …`, which clears the
+  polygon. Widening the area is always safe; narrowing it never removes existing entries, but
+  their owners can't edit them while outside.
 - **D7. After the contest:** leave the results up. Put the SMS rate limit back (A7). Before a
   next season, archive with `npx --yes supabase@3.1.0 db dump --remote --data-only --schema lights -f ~/lights-2026.sql`,
   then wipe (B8) and set new dates.
