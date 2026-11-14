@@ -2,7 +2,7 @@
 -- address dedupe, moderation (status), and the owner edit lock.
 begin;
 \ir lights_fixtures.psql
-select plan(50);
+select plan(51);
 
 -- Photos the test users have "uploaded" (photo_url must name an existing object).
 insert into storage.objects (bucket_id, name) values
@@ -73,6 +73,12 @@ select throws_ok($$
           'http://127.0.0.1:55321/storage/v1/object/public/houses/00000000-0000-4000-8000-0000000000e1/1.jpg')
 $$, '42501', 'new row violates row-level security policy for table "houses"',
   'a pin outside the geofence is rejected');
+select throws_ok($$
+  insert into lights.houses (address, lat, lng, photo_url)
+  values ('7500 Darrow Dr', 40.13193, -83.06264,
+          'http://127.0.0.1:55321/storage/v1/object/public/houses/00000000-0000-4000-8000-0000000000e1/1.jpg')
+$$, '42501', 'new row violates row-level security policy for table "houses"',
+  'a pin inside the old box but outside the polygon (Darrow & Nimitz) is rejected');
 select throws_ok($$
   insert into lights.houses (address, lat, lng, photo_url)
   values ('7030 Blackstone Dr', 40.1370, -83.0590,

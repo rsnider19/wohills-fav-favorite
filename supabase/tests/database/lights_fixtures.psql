@@ -22,7 +22,7 @@ insert into auth.users (id, aud, role, phone) values
 update public.admin_config set admin_phone = '15550000009';
 
 -- Fixture houses, inserted as postgres (trusted, so status can be set).
--- Inside the default geofence (40.1175..40.1450, -83.0670..-83.0305).
+-- Inside the default geofence polygon (supabase/geofence/worthington-hills.geojson).
 insert into lights.houses (id, submitted_by, address, lat, lng, photo_url, title, status) values
   ('00000000-0000-4000-9000-00000000000a', '00000000-0000-4000-8000-00000000000a',
    '1221 Candlewood Dr', 40.1231, -83.0516, 'https://example.test/storage/v1/object/public/houses/a/1.jpg', 'The Griswold Special', 'approved'),
