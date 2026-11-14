@@ -210,3 +210,6 @@ Each was run by hand on the final tree.
   guarantees they are numbers.
 - The migration is the only place the settings row's box columns change; the old box
   (40.1175..40.145, -83.067..-83.0305) is gone from the database, the app default and the tests.
+
+## Review notes
+Review in progress (reviewer, 2026-11-14). Findings and fixes are added here as they land.
