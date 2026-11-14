@@ -46,8 +46,27 @@ const REFERENCE: [string, number, number, boolean][] = [
   ['Downtown Columbus', 39.9612, -82.9988, false],
 ]
 
+// 3 m either side of five edges, and ~30 m outside the Route 315 edge. The same table is in
+// supabase/tests/database/lights_00_schema.test.sql, so the site and lights.in_geofence() agree.
+const NEAR_EDGES: [string, number, number, boolean][] = [
+  ['west edge (south part), 3 m in', 40.120249, -83.059144, true],
+  ['west edge (south part), 3 m out', 40.120201, -83.059176, false],
+  ['Route 315 edge, 3 m in', 40.120728, -83.034952, true],
+  ['Route 315 edge, 3 m out', 40.120752, -83.034888, false],
+  ['Highview notch, 3 m in', 40.129079, -83.039683, true],
+  ['Highview notch, 3 m out', 40.129131, -83.039697, false],
+  ['Hickory Bluff edge, 3 m in', 40.133426, -83.05572, true],
+  ['Hickory Bluff edge, 3 m out', 40.133424, -83.05565, false],
+  ['north edge, 3 m in', 40.138437, -83.059516, true],
+  ['north edge, 3 m out', 40.138463, -83.059454, false],
+  ['about 30 m east of the Route 315 edge', 40.1205, -83.0344, false],
+]
+
 describe('inGeofence', () => {
   it.each(REFERENCE)('%s', (_name, lat, lng, expected) => {
+    expect(inGeofence({ lat, lng }, DEFAULT_LIGHTS_SETTINGS)).toBe(expected)
+  })
+  it.each(NEAR_EDGES)('%s', (_name, lat, lng, expected) => {
     expect(inGeofence({ lat, lng }, DEFAULT_LIGHTS_SETTINGS)).toBe(expected)
   })
   it('gives the same answers for an open ring and a closed one', () => {
