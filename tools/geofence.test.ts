@@ -39,6 +39,18 @@ describe('parseGeofencePolygon', () => {
       geofence_polygon: [[40.1, -83.1], [40.1, -83.0], [40.2, -83.0], [40.1, -83.1]],
     })
   })
+  it('accepts an open ring as well as a closed one', () => {
+    const open = { type: 'Polygon', coordinates: [ring.slice(0, -1)] }
+    expect(parseGeofencePolygon(JSON.stringify(open)).geofence_polygon).toEqual([[40.1, -83.1], [40.1, -83.0], [40.2, -83.0]])
+  })
+  it('accepts a concave ring (an L shape)', () => {
+    const l = [[0, 0], [2, 0], [2, 1], [1, 1], [1, 2], [0, 2], [0, 0]]
+    expect(parseGeofencePolygon(JSON.stringify({ type: 'Polygon', coordinates: [l] })).geofence_polygon).toHaveLength(7)
+  })
+  it('names the problem with a MultiPolygon and with holes', () => {
+    expect(() => parseGeofencePolygon(JSON.stringify({ type: 'MultiPolygon', coordinates: [[ring]] }))).toThrow(/Polygon/)
+    expect(() => parseGeofencePolygon(JSON.stringify({ type: 'Polygon', coordinates: [ring, ring] }))).toThrow(/no holes/)
+  })
   it('accepts a Feature and a one-feature collection', () => {
     const feature = { type: 'Feature', properties: {}, geometry: polygon }
     expect(parseGeofencePolygon(JSON.stringify(feature))).toEqual(parseGeofencePolygon(JSON.stringify(polygon)))
@@ -55,6 +67,8 @@ describe('parseGeofencePolygon', () => {
     ['a string vertex', JSON.stringify({ type: 'Polygon', coordinates: [[[-83.1, '40.1'], ...ring.slice(1)]] })],
     ['lat 95', JSON.stringify({ type: 'Polygon', coordinates: [[[-83.1, 95], ...ring.slice(1)]] })],
     ['an empty collection', JSON.stringify({ type: 'FeatureCollection', features: [] })],
+    ['a bow tie (edges cross)', JSON.stringify({ type: 'Polygon', coordinates: [[[0, 0], [1, 1], [1, 0], [0, 1], [0, 0]]] })],
+    ['a ring that touches itself', JSON.stringify({ type: 'Polygon', coordinates: [[[0, 0], [2, 0], [1, 1], [2, 2], [0, 2], [1, 1], [0, 0]]] })],
   ])('rejects %s', (_name, text) => {
     expect(() => parseGeofencePolygon(text)).toThrow()
   })
