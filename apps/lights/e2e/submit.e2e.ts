@@ -101,6 +101,22 @@ test('out of area: GPS across town and an address outside the fence are refused'
   await expect(page.locator('[data-slot="note"][data-tone="error"]').last()).toContainText('Use your location')
 })
 
+test('out of area: GPS inside the bounding box but outside the polygon is refused', async ({ page, context }) => {
+  await signInAs(context, PHONE.fresh)
+  await context.grantPermissions(['geolocation'])
+  // Darrow Dr & Nimitz Dr, west of the tracks: inside the geofence's bounding box, outside the
+  // polygon. A box-only check would drop the pin. (Its own test: the browser caches a position
+  // for a minute, so a second setGeolocation in one page would not be seen.)
+  await context.setGeolocation({ latitude: 40.13193, longitude: -83.06264 })
+  await stubNetwork(page)
+  await page.goto('/enter')
+  await toPinStep(page)
+
+  await page.getByRole('button', { name: 'Use my location' }).click()
+  await expect(page.getByText("You don't seem to be in Worthington Hills right now")).toBeVisible()
+  await expect(page.locator('[data-slot="pin-coords"]')).toHaveCount(0)
+})
+
 test('GPS denied: the address lookup drops the pin instead (and the photo goes up without EXIF)', async ({ page, context }) => {
   await signInAs(context, PHONE.fresh)
   await stubNetwork(page, { '7420 test dr': { lat: 40.1283, lng: -83.0466, inGeofence: true } })
