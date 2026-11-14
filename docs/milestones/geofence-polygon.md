@@ -184,4 +184,29 @@ All reference points match the table. Every seeded house (`seed_lights.sql`), ev
 against the polygon and are inside. **No seed or test point was moved.**
 
 ### Acceptance criteria
-See the results below (filled in after the final run).
+Each was run by hand on the final tree.
+
+1. **Pass.** `npm run lint`, `npx tsc -b`, `npm test` (24 files, 331 tests) and `npm run build`
+   pass. Lights main bundle 99.48 KB gzip (limit 155).
+2. **Pass.** `db reset` then `test db`: 5 files, 157 tests (22 new in `lights_00_schema`, 1 new in
+   `lights_10_houses`).
+3. **Pass.** With the status env exported: `npm run e2e:lights` 59 passed, 18 skipped (the
+   `SHOOT=1` screenshot specs, skipped as before); `npm run e2e:smoke` 8 lights + 1 parade passed.
+   I also ran `supabase/tests/lights-smoke.mjs` against a served `geocode` function (15 checks
+   passed), which exercises the function reading the new column.
+4. **Pass.** Against the local stack: `--show` prints `geofence  polygon (36 vertices) in lat
+   40.1179..40.13877, lng -83.06427..-83.03402`; `GEOFENCE_POLYGON=supabase/geofence/worthington-hills.geojson`
+   stored vertices equal to the file's (swapped); `GEOFENCE=40.1175,40.145,-83.067,-83.0305`
+   printed that it clears the polygon and the column read back `null`; both at once failed with
+   "Set GEOFENCE or GEOFENCE_POLYGON, not both" and a non-zero exit. Then `db reset` restored the
+   migration's values (checked with `--show`).
+5. **Pass.** A build of `origin/main` in a scratch worktree gave a `apps/parade/dist` identical to
+   this branch's (`diff -r`), and nothing under `apps/parade` or `packages/` changed.
+6. **Pass.** Working tree clean after the last commit; only the local stack was used.
+
+### For a reviewer
+- `lights.in_geofence` builds the polygon text from jsonb with `format('(%s,%s)', ...)`; the
+  numbers come from jsonb numerics, which print as plain decimals, and the check constraint
+  guarantees they are numbers.
+- The migration is the only place the settings row's box columns change; the old box
+  (40.1175..40.145, -83.067..-83.0305) is gone from the database, the app default and the tests.
