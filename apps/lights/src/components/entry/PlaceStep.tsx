@@ -2,7 +2,7 @@ import { lazy, Suspense, useId, useRef, useState } from 'react'
 import { useSupabase } from '@wohills/core'
 import { ENTER } from '../../copy'
 import { addressProblem, tidy } from '../../lib/entry'
-import { inBox, roundPoint, type Box, type LatLng } from '../../lib/geo'
+import { geofence, inGeofence, roundPoint, type GeofenceSettings, type LatLng } from '../../lib/geo'
 import { currentPosition, geocodeAddress, type LocateError } from '../../lib/locate'
 import { ZOOM } from '../../map/config'
 import { ErrorBoundary } from '../ErrorBoundary'
@@ -15,7 +15,7 @@ import type { PointSource } from './SubmitWizard'
 const MiniMap = lazy(() => import('../../map/MiniMap'))
 
 interface Props {
-  box: Box
+  fence: GeofenceSettings
   address: string
   point: LatLng | null
   source: PointSource | null
@@ -31,7 +31,7 @@ type Busy = 'locate' | 'geocode' | null
 
 /** Step 2: the street address (the card's text) and the pin (the map's position). The pin
  *  comes from GPS, from the address via the geocode function, or from moving the map. */
-export function PlaceStep({ box, address, point, source, initial, onAddress, onPoint, onBack, onNext }: Props) {
+export function PlaceStep({ fence, address, point, source, initial, onAddress, onPoint, onBack, onNext }: Props) {
   const client = useSupabase()
   const addressId = useId()
   const addressRef = useRef<HTMLInputElement>(null)
@@ -45,7 +45,7 @@ export function PlaceStep({ box, address, point, source, initial, onAddress, onP
   const [mapDown, setMapDown] = useState(false)
 
   const problem = addressProblem(address)
-  const inside = point ? inBox(point, box) : null
+  const inside = point ? inGeofence(point, fence) : null
 
   function goTo(p: LatLng, from: PointSource) {
     setFocus((f) => ({ point: p, seq: (f?.seq ?? 0) + 1 }))
@@ -59,7 +59,7 @@ export function PlaceStep({ box, address, point, source, initial, onAddress, onP
     try {
       const p = await currentPosition()
       // Far away (at work, at the store): don't drag the map across town.
-      if (!inBox(p, box)) setNote(ENTER.locateErrors.far)
+      if (!inGeofence(p, fence)) setNote(ENTER.locateErrors.far)
       else goTo(p, 'gps')
     } catch (err) {
       setNote(ENTER.locateErrors[(err as LocateError) in ENTER.locateErrors ? (err as LocateError) : 'unavailable'])
@@ -182,7 +182,7 @@ export function PlaceStep({ box, address, point, source, initial, onAddress, onP
             }
           >
             <MiniMap
-              box={box}
+              box={geofence(fence)}
               initial={initial}
               focus={focus}
               label={ENTER.mapLabel}

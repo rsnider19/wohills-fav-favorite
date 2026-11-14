@@ -6,6 +6,8 @@ export interface Geofence {
   maxLat: number
   minLng: number
   maxLng: number
+  /** [lat, lng] vertices (open or closed ring); absent means the box alone applies. */
+  polygon?: [number, number][]
 }
 
 export interface GeocodeMatch {
@@ -49,18 +51,31 @@ export function censusUrl(oneLineAddress: string, base = CENSUS_DEFAULT_BASE): s
   return url.toString()
 }
 
-export function inGeofence(point: { lat: number; lng: number }, box: Geofence): boolean {
-  return (
-    point.lat >= box.minLat && point.lat <= box.maxLat && point.lng >= box.minLng && point.lng <= box.maxLng
-  )
+/** Ray casting; an open or closed ring both work. Mirrors lights.in_geofence(). */
+function inPolygon(point: { lat: number; lng: number }, ring: readonly (readonly [number, number])[]): boolean {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [latI, lngI] = ring[i]
+    const [latJ, lngJ] = ring[j]
+    if (latI > point.lat !== latJ > point.lat && point.lng < ((lngJ - lngI) * (point.lat - latI)) / (latJ - latI) + lngI)
+      inside = !inside
+  }
+  return inside
+}
+
+/** Inside the box AND, when there is one, the polygon. */
+export function inGeofence(point: { lat: number; lng: number }, fence: Geofence): boolean {
+  const inBox =
+    point.lat >= fence.minLat && point.lat <= fence.maxLat && point.lng >= fence.minLng && point.lng <= fence.maxLng
+  return inBox && (!fence.polygon || inPolygon(point, fence.polygon))
 }
 
 /**
  * Picks the best match from a Census response: the first match inside the
- * geofence, else the first match. Returns null for no matches. Throws if the
+ * geofence (box and polygon), else the first match. Returns null for no matches. Throws if the
  * payload isn't the documented shape (the caller maps that to a 502).
  */
-export function pickMatch(payload: unknown, box: Geofence): GeocodeMatch | null {
+export function pickMatch(payload: unknown, fence: Geofence): GeocodeMatch | null {
   const matches = (payload as { result?: { addressMatches?: unknown } })?.result?.addressMatches
   if (!Array.isArray(matches)) throw new Error('unexpected Census response')
   const parsed: GeocodeMatch[] = matches.flatMap((m) => {
@@ -69,10 +84,15 @@ export function pickMatch(payload: unknown, box: Geofence): GeocodeMatch | null 
     if (typeof x !== 'number' || typeof y !== 'number' || typeof m?.matchedAddress !== 'string') return []
     return [{ lat: y, lng: x, matchedAddress: m.matchedAddress }]
   })
-  return parsed.find((m) => inGeofence(m, box)) ?? parsed[0] ?? null
+  return parsed.find((m) => inGeofence(m, fence)) ?? parsed[0] ?? null
 }
 
-/** Settings row (snake_case columns) to a Geofence; null if any bound is missing. */
+const isVertex = (v: unknown): v is [number, number] =>
+  Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === 'number' && Number.isFinite(n))
+
+/** Settings row (snake_case columns) to a Geofence; null if any bound is missing. A missing
+ *  polygon (null) means the box alone; a malformed one (the database check forbids it) is
+ *  treated as unreadable settings, never silently as "no polygon". */
 export function toGeofence(row: unknown): Geofence | null {
   const r = row as Record<string, unknown> | null
   const box = {
@@ -81,7 +101,11 @@ export function toGeofence(row: unknown): Geofence | null {
     minLng: r?.geofence_min_lng,
     maxLng: r?.geofence_max_lng,
   }
-  return Object.values(box).every((v) => typeof v === 'number') ? (box as Geofence) : null
+  if (!Object.values(box).every((v) => typeof v === 'number')) return null
+  const polygon = r?.geofence_polygon
+  if (polygon === null || polygon === undefined) return box as Geofence
+  if (!Array.isArray(polygon) || polygon.length < 3 || !polygon.every(isVertex)) return null
+  return { ...(box as Geofence), polygon }
 }
 
 /**

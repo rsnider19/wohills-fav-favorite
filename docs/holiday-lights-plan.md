@@ -376,7 +376,8 @@ lights.settings (
   voting_open bool,          -- kill switch
   submissions_open bool,     -- kill switch
   results_visible bool,
-  geofence_min_lat, geofence_max_lat, geofence_min_lng, geofence_max_lng
+  geofence_min_lat, geofence_max_lat, geofence_min_lng, geofence_max_lng,  -- the polygon's bounding box
+  geofence_polygon jsonb     -- [lat, lng] vertices, nullable (null = the box alone); added after M3
 )
 
 -- admin: reuses public.admin_config / public.is_admin() (shared with the parade)
@@ -480,10 +481,10 @@ Today is Nov 12. The contest dates set three hard gates:
   §4, RLS, `lights.voting_is_open()`, `lights.submissions_are_open()`,
   `lights.get_results()` (top 3), and the `houses` bucket policies. Reuse
   `public.is_admin()`.
-- Geofence: I draft a bounding box around Worthington Hills from map data **for you to
-  confirm**, then store it in `lights.settings`. Drafted in M3: lat 40.1175 – 40.1450,
-  lng −83.0670 – −83.0305 (sources and derivation in `M3.md`); change it with
-  `contest-admin --contest lights` (`GEOFENCE=…`).
+- Geofence: M3 drafted a bounding box (lat 40.1175 – 40.1450, lng −83.0670 – −83.0305;
+  sources in `M3.md`). It has since been replaced by the neighborhood's real polygon,
+  confirmed by the site owner (`docs/milestones/geofence-polygon.md`); change it with
+  `contest-admin --contest lights` (`GEOFENCE_POLYGON=…`).
 - Census-geocoder Edge Function.
 - `contest-admin` CLI gets `--contest lights` to set the submission and voting windows
   and the reveal flag in `lights.settings`.
@@ -580,7 +581,7 @@ Today is Nov 12. The contest dates set three hard gates:
 | 3 | Moderation | **Admin approves** before an entry is public |
 | 4 | Self-voting | **Blocked** in RLS |
 | 5 | Windows | **Overlapping**: owner edits/withdrawals lock when voting opens (§4) |
-| 6 | Geofence | **Derived from map data by Claude, confirmed by you** (M3) |
+| 6 | Geofence | **A polygon**: the union of the four Worthington Hills outlines (east side along Route 315), grown 30 m, **confirmed by you 2026-11-14** (`docs/milestones/geofence-polygon.md`). Drafted as a box in M3. |
 | 7 | Domain | **`holiday-lights.worthingtonhills.org`** |
 | 8 | Dates | **Submissions Nov 28 – Dec 15, voting Dec 8 – Dec 20** (reveal after close, manual flip) |
 | 9 | Edit lock | **Confirmed**: owner edit/withdraw locks when voting opens |

@@ -2,7 +2,7 @@
 -- guard that the parade's public objects are unchanged.
 begin;
 \ir lights_fixtures.psql
-select plan(32);
+select plan(68);
 
 select has_schema('lights');
 select tables_are('lights', array['settings', 'houses', 'votes']);
@@ -88,6 +88,75 @@ select is((lights.submissions_are_open(), lights.voting_is_open(), lights.owner_
   '(f,f,f)', 'closed');
 select is(lights.in_geofence(40.1231, -83.0516), true, 'Candlewood Dr is inside the geofence');
 select is(lights.in_geofence(39.9612, -82.9988), false, 'downtown Columbus is outside the geofence');
+
+-- The polygon (geofence-polygon.md reference points) --------------------------------------
+select is(lights.in_geofence(40.1231, -83.0516), true, 'Candlewood Dr: inside');
+select is(lights.in_geofence(40.13131, -83.05912), true, 'Fairway Dr & Oakview Dr: inside');
+select is(lights.in_geofence(40.13774, -83.06033), true, 'Fairway Dr & Dollivor Dr: inside');
+select is(lights.in_geofence(40.13772, -83.06239), true, 'Evangeline Dr & Dollivor Dr: inside');
+select is(lights.in_geofence(40.12847, -83.04337), true, 'Highview Dr, west end: inside');
+select is(lights.in_geofence(40.1188, -83.038), true, 'Gatehouse Ln: inside');
+select is(lights.in_geofence(40.12235, -83.04469), true, 'Colony Way & Clubview Blvd S: inside');
+select is(lights.in_geofence(40.13193, -83.06264), false, 'Darrow Dr & Nimitz Dr (west of the tracks; inside the old box): outside');
+select is(lights.in_geofence(40.12969, -83.06217), false, 'Waco Ln & Nimitz Dr (west of the tracks; inside the old box): outside');
+select is(lights.in_geofence(40.13955, -83.06074), false, 'Churchill Dr & Derby Dr (north): outside');
+select is(lights.in_geofence(40.131, -83.04), false, 'Old Woods Farm (NE; inside the old box): outside');
+select is(lights.in_geofence(40.135, -83.05), false, 'Hickory Bluff park: outside');
+select is(lights.in_geofence(40.11667, -83.04225), false, 'Hard Rd & Sefton Park Dr (south): outside');
+select is(lights.in_geofence(40.123, -83.033), false, 'East of Route 315: outside');
+select is(lights.in_geofence(39.9612, -82.9988), false, 'Downtown Columbus: outside');
+
+-- Points 3 m either side of the middle of five edges (the same table is in geo.test.ts, so
+-- the site and the database must agree), and one about 30 m outside the east edge. Every
+-- "outside" one here was inside under Postgres's native `polygon @> point`, whose fixed 1e-6
+-- on-edge tolerance is tens of meters at this scale.
+select is(lights.in_geofence(40.120249, -83.059144), true, 'west edge (south part), 3 m in: inside');
+select is(lights.in_geofence(40.120201, -83.059176), false, 'west edge (south part), 3 m out: outside');
+select is(lights.in_geofence(40.120728, -83.034952), true, 'Route 315 edge, 3 m in: inside');
+select is(lights.in_geofence(40.120752, -83.034888), false, 'Route 315 edge, 3 m out: outside');
+select is(lights.in_geofence(40.129079, -83.039683), true, 'Highview notch, 3 m in: inside');
+select is(lights.in_geofence(40.129131, -83.039697), false, 'Highview notch, 3 m out: outside');
+select is(lights.in_geofence(40.133426, -83.05572), true, 'Hickory Bluff edge, 3 m in: inside');
+select is(lights.in_geofence(40.133424, -83.05565), false, 'Hickory Bluff edge, 3 m out: outside');
+select is(lights.in_geofence(40.138437, -83.059516), true, 'north edge, 3 m in: inside');
+select is(lights.in_geofence(40.138463, -83.059454), false, 'north edge, 3 m out: outside');
+select is(lights.in_geofence(40.1205, -83.0344), false, 'about 30 m east of the Route 315 edge: outside');
+
+select throws_ok($$update lights.settings set geofence_polygon = '[[40.12,-83.05],[40.13,-83.04]]'$$,
+  '23514', null, 'a 2-vertex polygon is rejected');
+select throws_ok($$update lights.settings set geofence_polygon = '{"lat": 40.12}'$$,
+  '23514', null, 'a polygon that is not an array is rejected');
+select throws_ok($$update lights.settings set geofence_polygon = '[[40.12,-83.05,1],[40.13,-83.04],[40.13,-83.05]]'$$,
+  '23514', null, 'a vertex with 3 numbers is rejected');
+select throws_ok($$update lights.settings set geofence_polygon = '[[40.12,"-83.05"],[40.13,-83.04],[40.13,-83.05]]'$$,
+  '23514', null, 'a vertex with a string is rejected');
+select throws_ok($$update lights.settings set geofence_polygon = '[[95,-83.05],[40.13,-83.04],[40.13,-83.05]]'$$,
+  '23514', null, 'a latitude of 95 is rejected');
+
+select throws_ok($$update lights.settings set geofence_polygon = '[[1e-400,-83.05],[40.13,-83.04],[40.13,-83.05]]'$$,
+  '23514', null, 'a coordinate that would underflow float8 is rejected');
+-- The validator answers false for odd shapes instead of raising (a check constraint must never raise).
+select is(
+  array(select lights.geofence_polygon_valid(x) from unnest(array[
+    'null', '"[[1,2],[3,4],[5,6]]"', '[]', '[null,[1,2],[1,3]]', '[[null,2],[1,2],[1,3]]',
+    '[[1,2],[1,2],{"a":1}]', '[[1,2],[1,2],[1,[2]]]', '[[true,2],[1,2],[1,3]]', '[[1,181],[1,2],[1,3]]'
+  ]::jsonb[]) as x),
+  array[false, false, false, false, false, false, false, false, false],
+  'the validator returns false, never an error, for malformed polygons');
+select is(lights.geofence_polygon_valid('[[-0,0],[1e-20,2],[90,-180]]'), true, 'zero, tiny and extreme-but-valid coordinates are accepted');
+
+-- An open ring (no repeated closing vertex) gives the same answers as the closed one.
+savepoint open_ring;
+update lights.settings set geofence_polygon = geofence_polygon - (jsonb_array_length(geofence_polygon) - 1);
+select is((lights.in_geofence(40.1231, -83.0516), lights.in_geofence(40.13193, -83.06264))::text,
+  '(t,f)', 'an open ring behaves like the closed one');
+rollback to savepoint open_ring;
+
+-- No polygon: the box alone applies, as before the polygon existed.
+savepoint no_polygon;
+update lights.settings set geofence_polygon = null;
+select is(lights.in_geofence(40.13193, -83.06264), true, 'with a null polygon, Darrow & Nimitz is inside the box again');
+rollback to savepoint no_polygon;
 
 -- The parade is untouched ---------------------------------------------------------------
 select is((select proconfig from pg_proc where oid = 'public.get_results()'::regprocedure),

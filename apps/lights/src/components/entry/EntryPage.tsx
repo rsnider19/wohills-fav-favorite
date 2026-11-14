@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { ENTER, MY_ENTRY, TOASTS } from '../../copy'
-import { geofence } from '../../lib/geo'
 import type { ContestStatus } from '../../lib/phase'
 import { navigate, onRouteClick, routeHref } from '../../lib/route'
 import type { EntryRow, LightsSettings } from '../../types'
@@ -43,7 +42,6 @@ export function EntryPage({ session, ready, settings, status, now, entry, entryF
   // Entries are open but owner edits are not (voting has opened: the windows overlap), so
   // a new entry is locked as soon as it exists. Mirrors lights.owner_edits_allowed().
   const late = status.submissionsOpen && !status.ownerCanEdit
-  const box = geofence(settings)
   const mine = entry ?? (sent && sent.submitted_by === session?.user.id ? sent : null)
 
   let eyebrow = ENTER.eyebrow
@@ -115,7 +113,7 @@ export function EntryPage({ session, ready, settings, status, now, entry, entryF
           mode="edit"
           uid={mine.submitted_by}
           house={mine}
-          box={box}
+          fence={settings}
           votingOpensAt={votingOpensAt}
           late={false}
           onDone={async (row) => {
@@ -160,7 +158,7 @@ export function EntryPage({ session, ready, settings, status, now, entry, entryF
           key={`new-${session.user.id}`}
           mode="new"
           uid={session.user.id}
-          box={box}
+          fence={settings}
           votingOpensAt={votingOpensAt}
           late={late}
           onDone={(row) => {

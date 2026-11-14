@@ -150,14 +150,14 @@ phone within half a minute.
 ## Holiday lights backend
 
 The lights contest lives in the same Supabase project, in its own `lights` schema
-(`supabase/migrations/20261113*_lights_*.sql`): houses, votes, settings, the `houses`
+(`supabase/migrations/2026111[34]*_lights_*.sql`): houses, votes, settings, the `houses`
 photo bucket and the `geocode` Edge Function. See `docs/milestones/M3.md` for the rules
 and the API.
 
 ```sh
 npx --yes supabase@3.1.0 test db              # pgTAP: every lights fairness rule (local stack)
 npm run contest-admin -- --contest lights --show
-npm run contest-admin -- --contest lights     # apply SUBMISSIONS_*/VOTING_*/RESULTS_VISIBLE/GEOFENCE/ADMIN_PHONE
+npm run contest-admin -- --contest lights     # apply SUBMISSIONS_*/VOTING_*/RESULTS_VISIBLE/GEOFENCE_POLYGON/GEOFENCE/ADMIN_PHONE
 ```
 
 `contest-admin --contest lights` reads `apps/lights/.env` (or `--env-file <path>`); see the
@@ -347,6 +347,8 @@ supabase/                            shared Supabase project (all contests)
                                      lights schema: settings, houses, votes, RLS, get_results()
   migrations/20261113000100_lights_storage.sql
                                      houses photo bucket + storage RLS
+  migrations/20261114000000_lights_geofence_polygon.sql
+                                     lights.settings.geofence_polygon + polygon-aware in_geofence()
   functions/geocode/                 Census geocoder proxy (Edge Function) + unit tests
   tests/database/                    pgTAP tests (`supabase test db`)
   tests/lights-smoke.mjs             end-to-end API smoke test (local stack only)

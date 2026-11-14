@@ -1,5 +1,6 @@
 import { votingWindow } from '@wohills/core'
 import type { LightsSettings } from '../types'
+import { DEFAULT_GEOFENCE_POLYGON } from './geofence-default'
 
 /** Where the contest is, from the visitor's point of view. Display only: the database
  *  enforces every window with its own clock (M3). */
@@ -9,10 +10,10 @@ export const PHASES: readonly Phase[] = ['before', 'submissions', 'voting', 'clo
 
 export const LIGHTS_SETTINGS_COLUMNS =
   'voting_open, results_visible, voting_opens_at, voting_closes_at, submissions_open, submissions_open_at, ' +
-  'submissions_close_at, geofence_min_lat, geofence_max_lat, geofence_min_lng, geofence_max_lng'
+  'submissions_close_at, geofence_min_lat, geofence_max_lat, geofence_min_lng, geofence_max_lng, geofence_polygon'
 
 /** Before the first settings load: nothing open, nothing counting down. Same dates and
- *  geofence as the M3 migration, so a slow first load never shows a wrong window. */
+ *  geofence as the migrations, so a slow first load never shows a wrong window. */
 export const DEFAULT_LIGHTS_SETTINGS: LightsSettings = {
   voting_open: true,
   results_visible: false,
@@ -21,10 +22,11 @@ export const DEFAULT_LIGHTS_SETTINGS: LightsSettings = {
   submissions_open: true,
   submissions_open_at: '2026-11-28T05:00:00Z',
   submissions_close_at: '2026-12-16T05:00:00Z',
-  geofence_min_lat: 40.1175,
-  geofence_max_lat: 40.145,
-  geofence_min_lng: -83.067,
-  geofence_max_lng: -83.0305,
+  geofence_min_lat: 40.1179,
+  geofence_max_lat: 40.13877,
+  geofence_min_lng: -83.06427,
+  geofence_max_lng: -83.03402,
+  geofence_polygon: DEFAULT_GEOFENCE_POLYGON,
 }
 
 export type CountdownKind = 'entries-open' | 'voting-opens' | 'voting-closes'

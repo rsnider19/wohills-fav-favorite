@@ -36,7 +36,9 @@ grant usage on schema lights to anon, authenticated, service_role;
 -- Defaults are the decided 2026 dates (America/New_York, EST = -05:00):
 --   submissions Nov 28 – Dec 15 (closes at the end of Dec 15),
 --   voting      Dec 8  – Dec 20 (closes at the end of Dec 20).
--- Geofence (FOR THE USER TO CONFIRM): Worthington Hills, Columbus OH 43235.
+-- Geofence: superseded by 20261114000000_lights_geofence_polygon.sql (a confirmed polygon,
+-- with these columns holding its bounding box). The M3 box draft, kept for history:
+-- Worthington Hills, Columbus OH 43235.
 -- The parade's streets (Candlewood, Mission Hills, Blind Brook, Shelley /
 -- Tennyson, Newcomer / Copperfield / Markhaven, Blackstone) and the Worthington
 -- Hills Country Club span lat 40.1223..40.1376, lng -83.0610..-83.0367 in
@@ -44,7 +46,7 @@ grant usage on schema lights to anon, authenticated, service_role;
 -- US Census geocoder places addresses on those streets within ~30 m of that.
 -- Padded ~500 m (north to 40.1450 to take in Loch Lomond, Churchill and
 -- Strathshire Hall). See docs/milestones/M3.md "Geofence". Change it with
--- `contest-admin --contest lights` (GEOFENCE=...), not in a migration.
+-- `contest-admin --contest lights` (now GEOFENCE_POLYGON=...), not in a migration.
 create table lights.settings (
   id boolean primary key default true check (id),
   voting_open boolean not null default true,          -- kill switch
