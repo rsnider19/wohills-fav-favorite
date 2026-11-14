@@ -12,14 +12,40 @@ export interface Box {
   maxLng: number
 }
 
-/** The contest geofence from lights.settings (the database checks the same box). */
-export function geofence(s: Pick<LightsSettings, 'geofence_min_lat' | 'geofence_max_lat' | 'geofence_min_lng' | 'geofence_max_lng'>): Box {
+/** The settings columns that describe the contest area. */
+export type GeofenceSettings = Pick<
+  LightsSettings,
+  'geofence_min_lat' | 'geofence_max_lat' | 'geofence_min_lng' | 'geofence_max_lng' | 'geofence_polygon'
+>
+
+/** The contest area's bounding box from lights.settings: the map's pan limit and fallback
+ *  view, and the cheap first half of `inGeofence`. */
+export function geofence(s: Omit<GeofenceSettings, 'geofence_polygon'>): Box {
   return { minLat: s.geofence_min_lat, maxLat: s.geofence_max_lat, minLng: s.geofence_min_lng, maxLng: s.geofence_max_lng }
 }
 
 /** Inclusive, like lights.in_geofence(). */
 export function inBox(p: LatLng, b: Box): boolean {
   return p.lat >= b.minLat && p.lat <= b.maxLat && p.lng >= b.minLng && p.lng <= b.maxLng
+}
+
+/** Ray casting over [lat, lng] vertices; an open or closed ring both work (a repeated
+ *  closing vertex adds a zero-length edge, which never flips the count). */
+function inPolygon(p: LatLng, ring: readonly (readonly [number, number])[]): boolean {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [latI, lngI] = ring[i]
+    const [latJ, lngJ] = ring[j]
+    if (latI > p.lat !== latJ > p.lat && p.lng < ((lngJ - lngI) * (p.lat - latI)) / (latJ - latI) + lngI) inside = !inside
+  }
+  return inside
+}
+
+/** Is this pin inside the contest area? The box AND, when the settings have one, the polygon.
+ *  Mirrors lights.in_geofence(); the database stays the authority. */
+export function inGeofence(p: LatLng, s: GeofenceSettings): boolean {
+  if (!inBox(p, geofence(s))) return false
+  return s.geofence_polygon ? inPolygon(p, s.geofence_polygon) : true
 }
 
 export function boxCenter(b: Box): LatLng {

@@ -2,6 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { RateLimiter, censusUrl, inGeofence, pickMatch, toCensusAddress, toGeofence } from './census.ts'
 
 const BOX = { minLat: 40.1175, maxLat: 40.1450, minLng: -83.067, maxLng: -83.0305 }
+// An L-shaped polygon in the box's lower-left: the box's upper-right corner is outside it.
+const POLY: [number, number][] = [
+  [40.1175, -83.067],
+  [40.1175, -83.0305],
+  [40.13, -83.0305],
+  [40.13, -83.05],
+  [40.145, -83.05],
+  [40.145, -83.067],
+]
+const FENCE = { ...BOX, polygon: POLY }
 const match = (x: number, y: number, a = 'X') => ({ matchedAddress: a, coordinates: { x, y } })
 
 describe('toCensusAddress', () => {
@@ -62,11 +72,51 @@ describe('pickMatch / inGeofence', () => {
   })
 })
 
+describe('polygon', () => {
+  const IN = { lat: 40.12, lng: -83.04 }
+  const IN_BOX_ONLY = { lat: 40.14, lng: -83.04 }
+  it('is box AND polygon', () => {
+    expect(inGeofence(IN, FENCE)).toBe(true)
+    expect(inGeofence(IN_BOX_ONLY, BOX)).toBe(true)
+    expect(inGeofence(IN_BOX_ONLY, FENCE)).toBe(false)
+    expect(inGeofence({ lat: 39.96, lng: -82.99 }, FENCE)).toBe(false)
+  })
+  it('gives the same answers for an open and a closed ring', () => {
+    const closed = { ...BOX, polygon: [...POLY, POLY[0]] }
+    for (const p of [IN, IN_BOX_ONLY, { lat: 40.141, lng: -83.06 }]) expect(inGeofence(p, closed)).toBe(inGeofence(p, FENCE))
+  })
+  it('does not prefer a match inside the box but outside the polygon', () => {
+    const payload = {
+      result: { addressMatches: [match(IN_BOX_ONLY.lng, IN_BOX_ONLY.lat, 'BOX ONLY'), match(IN.lng, IN.lat, 'HOME')] },
+    }
+    expect(pickMatch(payload, FENCE)?.matchedAddress).toBe('HOME')
+    expect(pickMatch(payload, BOX)?.matchedAddress).toBe('BOX ONLY')
+  })
+  it('falls back to the first match when none is inside the polygon', () => {
+    const payload = { result: { addressMatches: [match(IN_BOX_ONLY.lng, IN_BOX_ONLY.lat, 'FIRST')] } }
+    const m = pickMatch(payload, FENCE)
+    expect(m?.matchedAddress).toBe('FIRST')
+    expect(inGeofence(m!, FENCE)).toBe(false)
+  })
+})
+
 describe('toGeofence', () => {
   it('maps the settings columns', () => {
     expect(
       toGeofence({ geofence_min_lat: 1, geofence_max_lat: 2, geofence_min_lng: 3, geofence_max_lng: 4 }),
     ).toEqual({ minLat: 1, maxLat: 2, minLng: 3, maxLng: 4 })
+  })
+  it('reads the polygon, and treats null or absent as the box alone', () => {
+    const row = { geofence_min_lat: 1, geofence_max_lat: 2, geofence_min_lng: 3, geofence_max_lng: 4 }
+    const polygon = [[1, 3], [1, 4], [2, 4]]
+    expect(toGeofence({ ...row, geofence_polygon: polygon })).toEqual({ minLat: 1, maxLat: 2, minLng: 3, maxLng: 4, polygon })
+    expect(toGeofence({ ...row, geofence_polygon: null })).toEqual({ minLat: 1, maxLat: 2, minLng: 3, maxLng: 4 })
+  })
+  it('treats a malformed polygon as unreadable settings', () => {
+    const row = { geofence_min_lat: 1, geofence_max_lat: 2, geofence_min_lng: 3, geofence_max_lng: 4 }
+    expect(toGeofence({ ...row, geofence_polygon: [[1, 3], [1, 4]] })).toBeNull()
+    expect(toGeofence({ ...row, geofence_polygon: 'x' })).toBeNull()
+    expect(toGeofence({ ...row, geofence_polygon: [[1, 3], [1, 4], [1, 'a']] })).toBeNull()
   })
   it('rejects a partial row', () => {
     expect(toGeofence({ geofence_min_lat: 1 })).toBeNull()

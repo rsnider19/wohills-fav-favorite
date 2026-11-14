@@ -22,16 +22,21 @@
 //   lights only:
 //   SUBMISSIONS_OPEN_AT / SUBMISSIONS_CLOSE_AT   ISO 8601 with offset
 //   SUBMISSIONS_OPEN                      true|false   kill switch
-//   GEOFENCE                              minLat,maxLat,minLng,maxLng (decimal degrees)
+//   GEOFENCE_POLYGON                      path to a GeoJSON Polygon (or Feature) file; sets the polygon and
+//                                         derives the four box columns from it (relative paths resolve
+//                                         from your current directory)
+//   GEOFENCE                              minLat,maxLat,minLng,maxLng (decimal degrees); sets the box and
+//                                         CLEARS the polygon. Setting GEOFENCE and GEOFENCE_POLYGON together is an error.
 //
 // --show prints the current settings and changes nothing. --dry-run prints
 // what would be sent. The database enforces every window inside RLS; the
 // sites' countdowns only display them.
 
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
+import { parseGeofencePolygon } from './geofence-polygon.mjs'
 
 const CONTESTS = {
   parade: { schema: 'public', lightsOnly: false },
@@ -85,7 +90,20 @@ function parseBool(name) {
 
 function parseGeofence() {
   const raw = process.env.GEOFENCE
-  if (raw === undefined || raw.trim() === '') return {}
+  const file = process.env.GEOFENCE_POLYGON
+  const hasBox = raw !== undefined && raw.trim() !== ''
+  const hasFile = file !== undefined && file.trim() !== ''
+  if (hasBox && hasFile) fail('Set GEOFENCE or GEOFENCE_POLYGON, not both')
+  if (hasFile) {
+    const path = resolve(file.trim())
+    if (!existsSync(path)) fail(`GEOFENCE_POLYGON=${file} does not exist`)
+    try {
+      return parseGeofencePolygon(readFileSync(path, 'utf8'))
+    } catch (error) {
+      fail(`GEOFENCE_POLYGON=${file} ${error.message}`)
+    }
+  }
+  if (!hasBox) return {}
   const parts = raw.split(',').map((p) => Number(p.trim()))
   if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n)))
     fail(`GEOFENCE="${raw}" must be four numbers: minLat,maxLat,minLng,maxLng`)
@@ -93,7 +111,14 @@ function parseGeofence() {
   if (!(minLat < maxLat && minLng < maxLng)) fail('GEOFENCE needs minLat < maxLat and minLng < maxLng')
   if (Math.abs(minLat) > 90 || Math.abs(maxLat) > 90 || Math.abs(minLng) > 180 || Math.abs(maxLng) > 180)
     fail('GEOFENCE is out of range (lat ±90, lng ±180)')
-  return { geofence_min_lat: minLat, geofence_max_lat: maxLat, geofence_min_lng: minLng, geofence_max_lng: maxLng }
+  console.log('(GEOFENCE sets a plain box: the polygon is cleared. Use GEOFENCE_POLYGON to keep a shape.)')
+  return {
+    geofence_min_lat: minLat,
+    geofence_max_lat: maxLat,
+    geofence_min_lng: minLng,
+    geofence_max_lng: maxLng,
+    geofence_polygon: null,
+  }
 }
 
 function parseAdminPhone() {
@@ -106,7 +131,7 @@ function parseAdminPhone() {
   return normalized // digits only, matching the JWT phone claim
 }
 
-const lightsVars = ['SUBMISSIONS_OPEN_AT', 'SUBMISSIONS_CLOSE_AT', 'SUBMISSIONS_OPEN', 'GEOFENCE']
+const lightsVars = ['SUBMISSIONS_OPEN_AT', 'SUBMISSIONS_CLOSE_AT', 'SUBMISSIONS_OPEN', 'GEOFENCE', 'GEOFENCE_POLYGON']
 if (!contest.lightsOnly) {
   const stray = lightsVars.filter((name) => process.env[name] !== undefined && process.env[name] !== '')
   if (stray.length) fail(`${stray.join(', ')} only apply to --contest lights`)
@@ -167,10 +192,15 @@ function printSettings(row) {
   console.log(`    opens      ${fmt(row.voting_opens_at)}`)
   console.log(`    closes     ${fmt(row.voting_closes_at)}`)
   console.log(`  results      ${row.results_visible ? 'VISIBLE (revealed)' : 'hidden'}`)
-  if (contest.lightsOnly)
+  if (contest.lightsOnly) {
+    const lat = `${row.geofence_min_lat}..${row.geofence_max_lat}`
+    const lng = `${row.geofence_min_lng}..${row.geofence_max_lng}`
     console.log(
-      `  geofence     lat ${row.geofence_min_lat}..${row.geofence_max_lat}, lng ${row.geofence_min_lng}..${row.geofence_max_lng}`,
+      Array.isArray(row.geofence_polygon)
+        ? `  geofence     polygon (${row.geofence_polygon.length} vertices) in lat ${lat}, lng ${lng}`
+        : `  geofence     box lat ${lat} lng ${lng}`,
     )
+  }
 }
 
 if (args['dry-run']) {

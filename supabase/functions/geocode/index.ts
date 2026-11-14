@@ -74,7 +74,7 @@ async function userIdFrom(req: Request): Promise<string | null> {
 
 async function loadGeofence() {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/settings?select=geofence_min_lat,geofence_max_lat,geofence_min_lng,geofence_max_lng`,
+    `${SUPABASE_URL}/rest/v1/settings?select=geofence_min_lat,geofence_max_lat,geofence_min_lng,geofence_max_lng,geofence_polygon`,
     { headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`, 'Accept-Profile': 'lights' } },
   )
   if (!res.ok) return null
@@ -113,8 +113,8 @@ async function handle(req: Request): Promise<Response> {
   const address = toCensusAddress(body)
   if (!address) return json(400, { error: 'invalid_address' })
 
-  const box = await loadGeofence()
-  if (!box) return json(500, { error: 'geofence_unavailable' })
+  const fence = await loadGeofence()
+  if (!fence) return json(500, { error: 'geofence_unavailable' })
 
   let payload: unknown
   try {
@@ -130,11 +130,11 @@ async function handle(req: Request): Promise<Response> {
 
   let match
   try {
-    match = pickMatch(payload, box)
+    match = pickMatch(payload, fence)
   } catch (error) {
     console.error('geocode: unexpected Census payload', error)
     return json(502, { error: 'geocoder_unavailable' })
   }
   if (!match) return json(404, { error: 'no_match' })
-  return json(200, { match, inGeofence: inGeofence(match, box) })
+  return json(200, { match, inGeofence: inGeofence(match, fence) })
 }

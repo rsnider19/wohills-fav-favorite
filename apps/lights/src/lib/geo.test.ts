@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { boxCenter, distanceMeters, geofence, inBox, mapsSearchUrl, padBox, pointsBox, roundPoint } from './geo'
+import { boxCenter, distanceMeters, geofence, inBox, inGeofence, mapsSearchUrl, padBox, pointsBox, roundPoint } from './geo'
 import { DEFAULT_LIGHTS_SETTINGS } from './phase'
 
 const box = geofence(DEFAULT_LIGHTS_SETTINGS)
@@ -7,7 +7,7 @@ const candlewood = { lat: 40.12314, lng: -83.05157 }
 
 describe('geofence', () => {
   it('reads the four settings columns', () => {
-    expect(box).toEqual({ minLat: 40.1175, maxLat: 40.145, minLng: -83.067, maxLng: -83.0305 })
+    expect(box).toEqual({ minLat: 40.1179, maxLat: 40.13877, minLng: -83.06427, maxLng: -83.03402 })
   })
   it('contains a real Worthington Hills house and not downtown Columbus', () => {
     expect(inBox(candlewood, box)).toBe(true)
@@ -24,6 +24,49 @@ describe('geofence', () => {
     const p = padBox(box, 1000)
     expect(distanceMeters({ lat: box.maxLat, lng: box.minLng }, { lat: p.maxLat, lng: box.minLng })).toBeCloseTo(1000, -1)
     expect(distanceMeters({ lat: 40.13, lng: box.maxLng }, { lat: 40.13, lng: p.maxLng })).toBeCloseTo(1000, -1)
+  })
+})
+
+// The reference points from docs/milestones/geofence-polygon.md.
+const REFERENCE: [string, number, number, boolean][] = [
+  ['Candlewood Dr', 40.1231, -83.0516, true],
+  ['Fairway Dr & Oakview Dr', 40.13131, -83.05912, true],
+  ['Fairway Dr & Dollivor Dr', 40.13774, -83.06033, true],
+  ['Evangeline Dr & Dollivor Dr', 40.13772, -83.06239, true],
+  ['Highview Dr, west end', 40.12847, -83.04337, true],
+  ['Gatehouse Ln', 40.1188, -83.038, true],
+  ['Colony Way & Clubview Blvd S', 40.12235, -83.04469, true],
+  ['Darrow Dr & Nimitz Dr', 40.13193, -83.06264, false],
+  ['Waco Ln & Nimitz Dr', 40.12969, -83.06217, false],
+  ['Churchill Dr & Derby Dr', 40.13955, -83.06074, false],
+  ['Old Woods Farm', 40.131, -83.04, false],
+  ['Hickory Bluff park', 40.135, -83.05, false],
+  ['Hard Rd & Sefton Park Dr', 40.11667, -83.04225, false],
+  ['East of Route 315', 40.123, -83.033, false],
+  ['Downtown Columbus', 39.9612, -82.9988, false],
+]
+
+describe('inGeofence', () => {
+  it.each(REFERENCE)('%s', (_name, lat, lng, expected) => {
+    expect(inGeofence({ lat, lng }, DEFAULT_LIGHTS_SETTINGS)).toBe(expected)
+  })
+  it('gives the same answers for an open ring and a closed one', () => {
+    const poly = DEFAULT_LIGHTS_SETTINGS.geofence_polygon!
+    const first = poly[0]
+    const last = poly[poly.length - 1]
+    const open = last[0] === first[0] && last[1] === first[1] ? poly.slice(0, -1) : poly
+    const closed = [...open, open[0]]
+    for (const [, lat, lng] of REFERENCE) {
+      const p = { lat, lng }
+      expect(inGeofence(p, { ...DEFAULT_LIGHTS_SETTINGS, geofence_polygon: open })).toBe(
+        inGeofence(p, { ...DEFAULT_LIGHTS_SETTINGS, geofence_polygon: closed }),
+      )
+    }
+  })
+  it('falls back to the box when the polygon is null', () => {
+    const boxOnly = { ...DEFAULT_LIGHTS_SETTINGS, geofence_polygon: null }
+    expect(inGeofence({ lat: 40.13193, lng: -83.06264 }, boxOnly)).toBe(true)
+    expect(inGeofence({ lat: 39.9612, lng: -82.9988 }, boxOnly)).toBe(false)
   })
 })
 

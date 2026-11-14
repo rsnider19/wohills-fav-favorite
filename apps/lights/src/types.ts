@@ -23,6 +23,8 @@ export interface LightsSettings extends ContestSettings {
   geofence_max_lat: number
   geofence_min_lng: number
   geofence_max_lng: number
+  /** [lat, lng] vertices (open or closed ring), or null for the box alone. */
+  geofence_polygon: [number, number][] | null
 }
 
 export type HouseStatus = 'pending' | 'approved' | 'hidden'

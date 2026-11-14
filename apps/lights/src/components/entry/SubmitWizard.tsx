@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSupabase } from '@wohills/core'
 import { ENTER } from '../../copy'
 import { entryErrorKind, tidy, titleValue } from '../../lib/entry'
-import { inBox, type Box, type LatLng } from '../../lib/geo'
+import { inGeofence, type GeofenceSettings, type LatLng } from '../../lib/geo'
 import { EntryLockedError, ownEntry, submitEntry, updateEntry, type PreparedPhoto, type Stage } from '../../lib/submit'
 import type { EntryRow } from '../../types'
 import { DetailsStep } from './DetailsStep'
@@ -18,7 +18,7 @@ interface Props {
   uid: string
   /** The entry being edited (mode 'edit'). */
   house?: EntryRow
-  box: Box
+  fence: GeofenceSettings
   votingOpensAt: Date | null
   /** Voting has started while entries are still open: this entry will be locked at once. */
   late: boolean
@@ -32,7 +32,7 @@ type SendError = keyof typeof ENTER.sendErrors
 
 /** The three-step form for a new entry or an owner's edit. Nothing is uploaded until Send;
  *  then the photo goes up, the row goes in, and the page moves on (lib/submit.ts). */
-export function SubmitWizard({ mode, uid, house, box, votingOpensAt, late, onDone, onShowEntry, onCancel }: Props) {
+export function SubmitWizard({ mode, uid, house, fence, votingOpensAt, late, onDone, onShowEntry, onCancel }: Props) {
   const client = useSupabase()
   const [step, setStep] = useState(0)
   const [photo, setPhoto] = useState<DraftPhoto | null>(null)
@@ -105,7 +105,7 @@ export function SubmitWizard({ mode, uid, house, box, votingOpensAt, late, onDon
     if (kind !== 'rejected') return kind
     const { data: open } = await client.rpc('submissions_are_open')
     if (open === false) return 'closed'
-    if (point && !inBox(point, box)) return 'outside'
+    if (point && !inGeofence(point, fence)) return 'outside'
     return 'unknown'
   }
 
@@ -143,7 +143,7 @@ export function SubmitWizard({ mode, uid, house, box, votingOpensAt, late, onDon
       )}
       {step === 1 && (
         <PlaceStep
-          box={box}
+          fence={fence}
           address={address}
           point={point}
           source={source}
