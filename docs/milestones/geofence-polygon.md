@@ -145,7 +145,8 @@ then docs and the final checks (see the PR for SHAs).
 
 ### Choices and deviations
 - **No deviation from D1–D10.** Choices the spec left open:
-- **Point-in-polygon in SQL (D2): the native `polygon @> point`**, with the polygon built from
+- *(Superseded in review: `in_geofence` now ray-casts; see Review notes R1.)*
+  **Point-in-polygon in SQL (D2): the native `polygon @> point`**, with the polygon built from
   the jsonb vertices on each call (`point = (lng, lat)`). It is built in, counts boundary points
   as inside like the box does, and takes an open or closed ring. It is `stable`, `set search_path = ''`,
   with the same signature and grants, so the RLS policies are untouched. The cost is a 36-vertex
@@ -161,7 +162,8 @@ then docs and the final checks (see the PR for SHAs).
 - **App default (D7)** is a small hand-kept module, `apps/lights/src/lib/geofence-default.ts`,
   rather than importing the GeoJSON (Vite only treats `.json` as JSON and the file is outside the
   app root). The D4 test checks the GeoJSON, the migration literal and this module against each
-  other, so a drift fails `npm test`. Lights main bundle: 99.48 KB gzip (limit 155).
+  other, so a drift fails `npm test`. Lights main bundle: 99.48 KB gzip (limit 155). *(Review: that
+  build had no `VITE_SUPABASE_*` variables; the real figure is 152.35 KB, see R5.)*
 - **Components take a `fence` prop** (the settings columns) instead of a `box`: `SubmitWizard`
   and `PlaceStep` decide "inside" with `inGeofence`, and `PlaceStep` derives the box for the
   mini-map. `App.tsx` keeps the box for the lineup map's pan limit and fallback view.
@@ -187,7 +189,7 @@ against the polygon and are inside. **No seed or test point was moved.**
 Each was run by hand on the final tree.
 
 1. **Pass.** `npm run lint`, `npx tsc -b`, `npm test` (24 files, 331 tests) and `npm run build`
-   pass. Lights main bundle 99.48 KB gzip (limit 155).
+   pass. Lights main bundle 99.48 KB gzip (limit 155) *(152.35 KB with the variables set; see R5)*.
 2. **Pass.** `db reset` then `test db`: 5 files, 157 tests (22 new in `lights_00_schema`, 1 new in
    `lights_10_houses`).
 3. **Pass.** With the status env exported: `npm run e2e:lights` 59 passed, 18 skipped (the
@@ -205,11 +207,122 @@ Each was run by hand on the final tree.
 6. **Pass.** Working tree clean after the last commit; only the local stack was used.
 
 ### For a reviewer
-- `lights.in_geofence` builds the polygon text from jsonb with `format('(%s,%s)', ...)`; the
+- *(Superseded: no polygon text is built any more; see R1.)* `lights.in_geofence` builds the polygon text from jsonb with `format('(%s,%s)', ...)`; the
   numbers come from jsonb numerics, which print as plain decimals, and the check constraint
   guarantees they are numbers.
 - The migration is the only place the settings row's box columns change; the old box
   (40.1175..40.145, -83.067..-83.0305) is gone from the database, the app default and the tests.
 
 ## Review notes
-Review in progress (reviewer, 2026-11-14). Findings and fixes are added here as they land.
+Reviewer, 2026-11-14, on `975c165..136ffd3` plus the fixes below (commits on
+`ccr-d8fa11eb-d78hzt` after `136ffd3`).
+
+### Findings and fixes
+- **R1. `lights.in_geofence` accepted points up to ~35 m outside the polygon (fixed).** The
+  axis order, `stable`, `search_path`, grants and the untouched RLS policies were all right,
+  and the `format('(%s,%s)')` text was safe (jsonb numbers print as plain decimals, never in
+  exponent form and never through the locale). The problem is Postgres's own
+  `polygon @> point`: `point_inside()`/`lseg_crossing()` call a point "on the boundary" (so
+  inside) when a cross product is below the fixed `EPSILON` of 1e-6. In degrees that
+  cross product is edge length × distance, so for this polygon's 0.001–0.003° edges points
+  tens of meters outside counted as inside. A fuzz of 25,151 points (random in the box, plus
+  every vertex and edge midpoint at offsets from 1e-9° to 1e-5°) found 2,632 disagreements
+  with the client's ray cast, the farthest 0.00035° (~30 m) outside, e.g. 40.1205, -83.0344
+  east of the Route 315 edge; every disagreement was the database accepting a point the
+  client refused, never the reverse. Fix: `in_geofence` now ray-casts in `float8` with the
+  same arithmetic, in the same order, as `inGeofence()` in `geo.ts` and `census.ts` (same
+  signature, `stable`, `search_path = ''`, grants kept by `create or replace`; the RLS
+  policies still read `lights.in_geofence(lat, lng)`, checked in `pg_policy`). The same
+  fuzz now gives **0 disagreements** between SQL, the app and the geocoder, vertices and
+  edges included, because the three compute bit-identical doubles (jsonb text → `float8`
+  and `JSON.parse` both round correctly; the app rounds a pin to 6 decimals before it both
+  checks and saves it). A horizontal or zero-length edge never enters the division (guarded
+  by `CASE`), so open and closed rings both work. Edited in the new migration itself, since
+  it has never been pushed anywhere.
+- **R2. The validator accepted a value that made `in_geofence` raise (fixed).** A
+  coordinate like `1e-400` passes "a number in −90..90" but underflows the cast to `float8`
+  ("out of range for type double precision"). The validator now also rejects a nonzero
+  coordinate below 1e-300 in magnitude. Otherwise it was sound: immutable, nested `CASE` so
+  nothing is cast before its type is known, `set search_path` (so never inlined), and it
+  returns false, without raising, for JSON `null`, a string, `[]`, null or non-array
+  vertices, booleans, nested arrays and out-of-range numbers (now a pgTAP test). NaN and
+  Infinity cannot occur: JSON has no such numbers and `to_jsonb('NaN'::numeric)` is the
+  string `"NaN"`, which fails the type check. A 200,000-vertex array validates in well under
+  a second. Numeric strings (`"-83.05"`) are rejected, as the spec asks.
+- **R3. `contest-admin` would store a self-crossing ring (fixed).** Parsing was right:
+  a bare Polygon, a Feature or a one-feature collection; `[lng, lat]` swapped to
+  `[lat, lng]`; a MultiPolygon, holes, a 3-number vertex, strings and out-of-range values
+  refused with a message naming the problem; the box is the vertices' min/max; `GEOFENCE`
+  sets `geofence_polygon: null` and says so; both together fail inside the patch build,
+  before any request. A bow tie or a ring that touches itself was accepted, though, and
+  inside/outside would then stop matching the map. `parseGeofencePolygon` now refuses any
+  ring whose non-neighboring edges cross or touch (the shipped outline passes; tests for a
+  bow tie, a self-touching ring, an open ring and a concave L). The tool has no local/remote
+  guard of its own beyond printing `target: <host>` (unchanged from `975c165`); `--env-file`
+  and the "exported variables win" rule are untouched.
+- **R4. The hosted rollback would have left the new migration recorded (fixed).** Runbook
+  rollback step 3 deleted only M3's two `schema_migrations` rows, so after a rollback a
+  re-push would skip `20261114000000` and the site would select a column that no longer
+  exists. Step 3 now deletes that row too. The rollout itself was right: the migration is
+  in A2's list and A3's push, before A4 exposes `lights`, and `--remote` is on every
+  `db push`, `db dump` and `migration list`. I also pointed the M3 migration's
+  "FOR THE USER TO CONFIRM … (GEOFENCE=...)" comment at the new migration, since it now
+  misleads (a comment only; hosted has never run either file).
+- **R5. The bundle did not shrink; the measurement did.** `apps/lights/src/lib/supabase.ts`
+  throws at module load when `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` are missing.
+  Built without them, Vite inlines `undefined`, the `throw` becomes unconditional and the
+  bundler drops everything after it: 338.00 KB / 99.48 KB gzip, for `975c165` (pre-change)
+  and this branch alike, a page that would only throw. With the variables set, as CI sets
+  them (`.github/workflows/ci.yml`) and as M8 measured: `975c165` gives 523.12 KB /
+  **151.89 KB** gzip (M8's figure) and this branch **524.19 KB / 152.35 KB** gzip, so the
+  polygon costs 0.46 KB gzip, under the 155 KB limit. Nothing broke, no chunk moved, no
+  feature is missing. A build without the variables is never a valid size measurement.
+- **R6. Test holes (filled).** The pgTAP and `geo.test.ts` reference points all passed even
+  with the broken native operator, because none sat near an edge. Both now share a table of
+  points 3 m either side of five edges plus the 30 m point (every "outside" row fails on the
+  old function). New e2e `out of area: GPS inside the bounding box but outside the polygon is
+  refused`: a GPS fix at Darrow & Nimitz must not drop a pin. I checked it fails when
+  `inGeofence` is made box-only. (It is its own test because the app asks for a position at
+  most 60 s old, so a second `setGeolocation` in the same page is not seen.)
+
+### Checked and left alone
+- **D4 file match** really compares all three copies: the migration literal and
+  `DEFAULT_GEOFENCE_POLYGON` against the parsed GeoJSON, element by element, plus the four box
+  numbers.
+- **Seed and e2e points.** After `db reset`, every seeded house passes
+  `lights.in_geofence` (8 of 8, new function), as do all `e2e/helpers.ts` rows, the
+  1283/-83.0466 and Candlewood stubs and the pgTAP fixtures. Nothing moved.
+- **Exact edges and vertices.** SQL, `geo.ts` and `census.ts` now agree bit for bit, so there
+  is no edge case where one rejects what another accepts. A point exactly on an edge may be
+  in or out (half-open ray-cast rule), unlike the inclusive box; with the outline grown 30 m
+  that cannot decide a real house.
+- **Geocoder.** `toGeofence` refusing a malformed polygon (so `geofence_unavailable`) rather
+  than falling back to the box is the right call. The function reads the new column with the
+  anon key, which the table-level `select` grant covers. Not re-served locally in review
+  (its code did not change after the implementer's smoke run).
+- **App wiring.** Every "is this pin inside" decision (`PlaceStep` pin hint, GPS "far",
+  `SubmitWizard` error mapping) uses `inGeofence`; the map pan limit and fallback view keep
+  the box (`App.tsx`, `geofence(fence)` for the mini-map).
+- **Swapped files.** A GeoJSON file written in `[lat, lng]` order would pass the range checks
+  (lat −83, lng 40). Not guarded: the tool prints the resulting box, and `--dry-run` shows the
+  whole patch first.
+- **3D coordinates** (`[lng, lat, alt]`) are refused rather than trimmed, as the
+  implementer's tests assert; the message is clear.
+- `functions deploy`/`functions delete` in the runbook have no `--remote`: they target the
+  linked project by design and are not database commands (unchanged from M8).
+
+### Final checks (on the final tree)
+- `npm run lint`, `npx tsc -b`: pass. `npm test`: 24 files, 347 tests pass.
+- `npm run build` with CI's variables: pass, no chunk warning; lights main
+  `index-*.js` 524.19 KB / **152.35 KB gzip** (limit 155).
+- `npx --yes supabase@3.1.0 db reset` then `test db`: 5 files, **171 tests** pass
+  (`lights_00_schema` 68).
+- With the status env exported: `npm run e2e:lights` **60 passed**, 18 skipped (the `SHOOT=1`
+  screenshot specs); `npm run e2e:smoke` 8 lights + 1 parade passed.
+- `contest-admin` against the local stack: `--show` prints the polygon line; a bow-tie file and
+  `GEOFENCE`+`GEOFENCE_POLYGON` both exit 1 before writing; `GEOFENCE=…` prints that it clears
+  the polygon and the column reads `null` (Darrow & Nimitz then inside); `GEOFENCE_POLYGON=…`
+  stores the file's vertices swapped, equal to the file. Then `db reset`.
+- Parade: `apps/parade/dist` built from `origin/main` (f8ae601) and from this branch with
+  the same variables: `diff -r` identical; nothing under `apps/parade` or `packages/` changed.
+- Local stack left reset to the seed; no dev servers, Playwright processes or `.env` files.
